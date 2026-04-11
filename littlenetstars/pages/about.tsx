@@ -8,10 +8,10 @@ export default function About() {
   return (
     <>
       <Head>
-        <title>About Afrika Morris – LittleNetStars</title>
+        <title>Meet the Coaches – LittleNetStars</title>
         <meta
           name="description"
-          content="Former Jamaican international and UK Netball Superleague player, Afrika Morris now coaches the next generation of netball stars."
+          content="Affy Morris — Founder of LittleNetStars. Former Jamaican international and UK Netball Superleague player, now coaching the next generation."
         />
       </Head>
 
@@ -27,10 +27,10 @@ export default function About() {
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-widest">
-                Coach & Founder
+                Founder & Head Coach
               </div>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 dark:text-white leading-tight">
-                Afrika Morris
+                Affy Morris
               </h1>
               <p className="mt-4 text-lg text-purple-600 dark:text-purple-400 font-semibold">
                 Former Jamaican International · UK Netball Superleague
@@ -43,8 +43,9 @@ export default function About() {
               transition={{ duration: 0.6 }}
               className="flex justify-center"
             >
-              <div className="w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-gradient-to-br from-purple-100 to-yellow-100 dark:from-purple-900/40 dark:to-yellow-900/30 flex items-center justify-center shadow-xl">
-                <span className="text-8xl">🏐</span>
+              <div className="w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-900/60 dark:to-yellow-900/40 flex flex-col items-center justify-center shadow-xl gap-2">
+                <span className="text-6xl font-extrabold text-purple-600 dark:text-purple-300">AM</span>
+                <span className="text-xs text-purple-500 dark:text-purple-400 font-medium">Photo coming soon</span>
               </div>
             </motion.div>
           </div>
@@ -61,19 +62,28 @@ export default function About() {
               className="prose prose-slate dark:prose-invert max-w-none"
             >
               <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Afrika Morris is a former Jamaican netball player who has competed at both national youth and professional levels in Jamaica and the United Kingdom.
+                Affy is a former Jamaican netball player who has competed at
+                both national youth and professional levels in Jamaica and the
+                United Kingdom.
               </p>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                She represented Jamaica at Under-21 level, demonstrating her talent on the international stage before continuing her development in England.
+                She represented Jamaica at Under-21 level, demonstrating her
+                talent on the international stage before continuing her
+                development in England.
               </p>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                Afrika went on to play in the UK&apos;s Netball Superleague, gaining valuable experience in a high-performance environment.
+                Affy went on to play in the UK&apos;s Netball Superleague,
+                gaining valuable experience in a high-performance environment.
               </p>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                With a background that spans both the Caribbean and UK netball systems, Afrika brings a unique blend of skill, discipline, and game intelligence.
+                With a background that spans both the Caribbean and UK netball
+                systems, Affy brings a unique blend of skill, discipline, and
+                game intelligence.
               </p>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-                She is now dedicated to coaching and mentoring young players, helping them build confidence, develop strong fundamentals, and reach their full potential in netball.
+                She is now dedicated to coaching and mentoring young players,
+                helping them build confidence, develop strong fundamentals, and
+                reach their full potential in netball.
               </p>
             </motion.div>
           </div>
@@ -93,9 +103,21 @@ export default function About() {
             </motion.h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {[
-                { icon: "🇯🇲", title: "Jamaica U21", desc: "Represented Jamaica at international youth level" },
-                { icon: "🏆", title: "Superleague", desc: "Competed in the UK Netball Superleague" },
-                { icon: "🌍", title: "Caribbean & UK", desc: "Experience across two elite netball systems" },
+                {
+                  icon: "🇯🇲",
+                  title: "Jamaica U21",
+                  desc: "Represented Jamaica at international youth level",
+                },
+                {
+                  icon: "🏆",
+                  title: "Superleague",
+                  desc: "Competed in the UK Netball Superleague",
+                },
+                {
+                  icon: "🌍",
+                  title: "Founder",
+                  desc: "Created LittleNetStars to coach the next generation",
+                },
               ].map((item) => (
                 <motion.div
                   key={item.title}
@@ -106,11 +128,35 @@ export default function About() {
                   className="bg-white dark:bg-slate-900 rounded-2xl p-6 text-center shadow-sm"
                 >
                   <div className="text-4xl mb-3">{item.icon}</div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.desc}</p>
+                  <h3 className="font-bold text-slate-900 dark:text-white">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    {item.desc}
+                  </p>
                 </motion.div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* More coaches coming */}
+        <section className="py-16 px-4 bg-white dark:bg-slate-900">
+          <div className="max-w-3xl mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="inline-block bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-widest">
+                Growing Team
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">More coaches joining soon</h2>
+              <p className="mt-3 text-slate-500 dark:text-slate-400">
+                LittleNetStars is expanding. New coaches will be announced here shortly.
+              </p>
+            </motion.div>
           </div>
         </section>
 
@@ -124,10 +170,11 @@ export default function About() {
             className="max-w-2xl mx-auto text-center"
           >
             <h2 className="text-3xl font-bold text-white">
-              Book a session with Afrika
+              Book a session with Affy
             </h2>
             <p className="mt-4 text-purple-200">
-              Give your child the chance to train with a former international player.
+              Give your child the chance to train with a former international
+              player.
             </p>
             <Link
               href="/booking"

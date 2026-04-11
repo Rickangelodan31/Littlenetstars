@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 
 const bookingsRouter = require("./routes/bookings");
 const paymentsRouter = require("./routes/payments");
+const adminRouter = require("./routes/admin");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use(express.json());
 
 app.use("/api/bookings", bookingsRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/admin", adminRouter);
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 

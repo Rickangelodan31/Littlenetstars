@@ -82,7 +82,7 @@ export default function Home() {
                 href="/about"
                 className="border-2 border-purple-600 dark:border-purple-400 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-slate-800 px-8 py-3 rounded-full text-base font-bold transition-colors"
               >
-                Meet Afrika
+                Meet the Coaches
               </Link>
             </motion.div>
           </motion.div>
@@ -197,19 +197,19 @@ export default function Home() {
               transition={{ duration: 0.6 }}
             >
               <div className="inline-block bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-widest">
-                Your Coach
+                Coaches &amp; Founder
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
-                Meet Afrika Morris
+                Meet the Coaches &amp; Founder
               </h2>
               <p className="mt-4 text-slate-600 dark:text-slate-300 leading-relaxed">
-                Former Jamaican international netball player. UK Netball Superleague veteran. Now dedicated to coaching the next generation of stars.
+                Led by Affy Morris — former Jamaican international and UK Netball Superleague player. Now dedicated to coaching the next generation of stars.
               </p>
               <Link
                 href="/about"
                 className="inline-block mt-6 text-purple-600 dark:text-purple-400 font-semibold hover:underline"
               >
-                Read Afrika&apos;s story →
+                Meet the coaches →
               </Link>
             </motion.div>
 
