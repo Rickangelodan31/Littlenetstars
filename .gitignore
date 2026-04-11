@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Next.js build output
+.next/
+out/
+
+# Production builds
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
