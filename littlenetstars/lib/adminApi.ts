@@ -118,3 +118,47 @@ export async function deleteCoach(token: string, id: string): Promise<void> {
   });
   if (!res.ok) throw new Error("Delete failed");
 }
+
+// ── Settings ───────────────────────────────────────────────────────
+export async function fetchSettings(token: string): Promise<Record<string, string>> {
+  const res = await fetch(`${API}/api/admin/settings`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json();
+}
+
+export async function saveSettings(token: string, data: Record<string, string>): Promise<void> {
+  const res = await fetch(`${API}/api/admin/settings`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to save settings");
+}
+
+// ── Bookings ───────────────────────────────────────────────────────
+export interface BookingRecord {
+  _id: string;
+  location: string;
+  date: string;
+  time: string;
+  children: { name: string; age: number }[];
+  parent: { name: string; email: string; phone: string };
+  status: string;
+  isFreeSession: boolean;
+  amountPaid?: number;
+  createdAt: string;
+}
+
+export async function fetchAllBookings(token: string): Promise<BookingRecord[]> {
+  const res = await fetch(`${API}/api/admin/bookings`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("Failed to fetch bookings");
+  return res.json();
+}
+
+export async function deleteBooking(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API}/api/admin/bookings?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Delete failed");
+}
