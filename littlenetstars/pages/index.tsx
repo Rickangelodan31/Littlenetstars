@@ -4,6 +4,7 @@ import { motion, type Variants } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NetballAnimation from "@/components/NetballAnimation";
+import NetballShadowScene from "@/components/NetballShadowScene";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -35,6 +36,9 @@ export default function Home() {
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-300/20 dark:bg-purple-600/10 rounded-full blur-3xl" />
           </div>
+
+          {/* 3D shadow animation — netballers & umpire silhouettes */}
+          <NetballShadowScene />
 
           <motion.div
             className="relative z-10 max-w-4xl mx-auto"
@@ -71,12 +75,18 @@ export default function Home() {
               🎉 First session is FREE
             </motion.div>
 
-            <motion.div variants={fadeUp} className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
+            <motion.div variants={fadeUp} className="mt-6 flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
               <Link
                 href="/booking"
                 className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-full text-base font-bold shadow-lg transition-transform hover:scale-105"
               >
                 Book Free Session
+              </Link>
+              <Link
+                href="/subscriptions"
+                className="bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-3 rounded-full text-base font-bold shadow-lg transition-transform hover:scale-105"
+              >
+                Monthly Plans
               </Link>
               <Link
                 href="/about"
@@ -170,7 +180,7 @@ export default function Home() {
             >
               {[
                 { label: "Days", value: "Sat & Sun", icon: "🗓️" },
-                { label: "Duration", value: "30 Minutes", icon: "⏱️" },
+                { label: "Duration", value: "45 Minutes", icon: "⏱️" },
                 { label: "Locations", value: "London & Manchester", icon: "📍" },
               ].map((item) => (
                 <motion.div
@@ -223,6 +233,66 @@ export default function Home() {
               <div className="w-64 h-64 rounded-3xl bg-gradient-to-br from-purple-100 to-yellow-100 dark:from-purple-900/40 dark:to-yellow-900/30 flex items-center justify-center shadow-lg">
                 <span className="text-8xl">⭐</span>
               </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* SUBSCRIPTION PLANS TEASER */}
+        <section className="py-20 px-4 bg-white dark:bg-slate-900">
+          <div className="max-w-5xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <div className="inline-flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
+                Monthly Plans
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
+                Subscribe &amp; Save
+              </h2>
+              <p className="mt-3 text-slate-500 dark:text-slate-400">
+                Secure all weekend sessions for the month at a discounted rate
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto"
+            >
+              <div className="border-2 border-purple-200 dark:border-purple-800 rounded-2xl p-6 text-center">
+                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£100</div>
+                <div className="text-purple-600 dark:text-purple-400 font-semibold text-sm mt-1">per month</div>
+                <div className="mt-3 text-slate-600 dark:text-slate-300 text-sm font-medium">All Saturdays</div>
+                <div className="text-slate-400 dark:text-slate-500 text-xs mt-1">~4 sessions / month</div>
+              </div>
+              <div className="border-2 border-yellow-400 rounded-2xl p-6 text-center relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full">Best Value</div>
+                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£160</div>
+                <div className="text-yellow-600 dark:text-yellow-400 font-semibold text-sm mt-1">per month</div>
+                <div className="mt-3 text-slate-600 dark:text-slate-300 text-sm font-medium">Saturdays &amp; Sundays</div>
+                <div className="text-slate-400 dark:text-slate-500 text-xs mt-1">Up to ~8 sessions / month</div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-center mt-8"
+            >
+              <Link
+                href="/subscriptions"
+                className="inline-block bg-yellow-400 hover:bg-yellow-500 text-slate-900 px-8 py-3 rounded-full font-bold shadow-lg transition-transform hover:scale-105"
+              >
+                View Monthly Plans
+              </Link>
             </motion.div>
           </div>
         </section>

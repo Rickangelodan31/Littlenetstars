@@ -9,13 +9,20 @@ import { verifyPayment, fetchBooking, type BookingData } from "@/lib/api";
 
 export default function PaymentSuccess() {
   const router = useRouter();
-  const { session_id, booking_id } = router.query;
+  const { session_id, booking_id, type, plan } = router.query;
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [booking, setBooking] = useState<BookingData | null>(null);
   const [isFreeSession, setIsFreeSession] = useState(false);
+  const isSubscription = type === "subscription";
 
   useEffect(() => {
+    // Subscription success — no further verification needed
+    if (isSubscription) {
+      setStatus("success");
+      return;
+    }
+
     // Free session — confirmed directly, no Stripe
     if (booking_id && typeof booking_id === "string") {
       fetchBooking(booking_id)
@@ -41,7 +48,7 @@ export default function PaymentSuccess() {
         })
         .catch(() => setStatus("error"));
     }
-  }, [session_id, booking_id]);
+  }, [session_id, booking_id, isSubscription]);
 
   return (
     <>
@@ -77,7 +84,45 @@ export default function PaymentSuccess() {
             </motion.div>
           )}
 
-          {status === "success" && booking && (
+          {/* Subscription success */}
+          {status === "success" && isSubscription && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-8 text-center"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+              >
+                <span className="text-3xl">🌟</span>
+              </motion.div>
+              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                Subscription Confirmed!
+              </h1>
+              <div className="mt-2 inline-flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1.5 rounded-full">
+                {plan === "both" ? "Weekend Sessions" : "Saturday Sessions"} — Active
+              </div>
+              <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">
+                Your subscription is now active. You&apos;re all set for every{" "}
+                {plan === "both" ? "Saturday and Sunday" : "Saturday"} this month.
+              </p>
+              <p className="mt-2 text-slate-400 dark:text-slate-500 text-xs">
+                A confirmation has been sent to your email. You can manage your subscription via the Stripe customer portal.
+              </p>
+              <Link
+                href="/"
+                className="block mt-6 text-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-full transition-colors"
+              >
+                Back to Home
+              </Link>
+            </motion.div>
+          )}
+
+          {status === "success" && !isSubscription && booking && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
