@@ -1,9 +1,28 @@
 import Head from "next/head";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
+import type { GetServerSideProps } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NetballAnimation from "@/components/NetballAnimation";
+import dbConnect from "@/lib/mongodb";
+import Setting from "@/lib/models/Setting";
+
+interface Props {
+  settings: Record<string, string>;
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
+  try {
+    await dbConnect();
+    const docs = await Setting.find({}).lean() as { key: string; value: string }[];
+    const settings: Record<string, string> = {};
+    docs.forEach((d) => { settings[d.key] = d.value; });
+    return { props: { settings } };
+  } catch {
+    return { props: { settings: {} } };
+  }
+};
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -15,15 +34,25 @@ const stagger: Variants = {
   show: { transition: { staggerChildren: 0.15 } },
 };
 
-export default function Home() {
+export default function Home({ settings }: Props) {
+  const s = settings;
+
+  const heroTitle      = s.hero_title       || "LittleNetStars";
+  const heroTagline    = s.hero_subtitle    || "Building Confidence Through Netball";
+  const heroDesc       = s.hero_description || "Fun, structured netball training for young players in London & Manchester.";
+  const coachesTeaserText = s.coaches_teaser || "Led by Affy Morris — former Jamaican international and UK Netball Superleague player. Now dedicated to coaching the next generation of stars.";
+  const ctaDesc        = s.cta_text         || "Your child's first session is on us — no card needed. After that, it's just £30 per session.";
+  const duration       = s.duration         || "45 Minutes";
+  const locationsStr   = s.locations        || "London, Manchester";
+  const sessionPrice   = s.price ? `£${(Number(s.price) / 100).toFixed(0)}` : "£30";
+  const satPricePence  = Number(s.plan_saturday_price || 10000);
+  const bothPricePence = Number(s.plan_both_price     || 16000);
+
   return (
     <>
       <Head>
-        <title>LittleNetStars – Building Confidence Through Netball</title>
-        <meta
-          name="description"
-          content="Fun, structured netball training for young players in London & Manchester. Book your child's session today."
-        />
+        <title>{heroTitle} – Building Confidence Through Netball</title>
+        <meta name="description" content={heroDesc} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -50,21 +79,23 @@ export default function Home() {
               variants={fadeUp}
               className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight"
             >
-              LittleNet<span className="text-purple-600 dark:text-purple-400">Stars</span>
+              {heroTitle.includes("NetStars") ? (
+                <>LittleNet<span className="text-purple-600 dark:text-purple-400">Stars</span></>
+              ) : heroTitle}
             </motion.h1>
 
             <motion.p
               variants={fadeUp}
               className="mt-3 text-lg sm:text-xl font-semibold text-yellow-600 dark:text-yellow-400 tracking-wide"
             >
-              Building Confidence Through Netball
+              {heroTagline}
             </motion.p>
 
             <motion.p
               variants={fadeUp}
               className="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-xl mx-auto"
             >
-              Fun, structured netball training for young players in London & Manchester.
+              {heroDesc}
             </motion.p>
 
             <motion.div variants={fadeUp} className="mt-3 inline-flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-semibold px-4 py-2 rounded-full">
@@ -118,24 +149,9 @@ export default function Home() {
               className="grid grid-cols-1 md:grid-cols-3 gap-8"
             >
               {[
-                {
-                  step: "01",
-                  title: "Choose a Date",
-                  desc: "Pick from available Saturday or Sunday sessions in your city.",
-                  icon: "📅",
-                },
-                {
-                  step: "02",
-                  title: "Add Your Child",
-                  desc: "Enter your child's details. You can add multiple children at once.",
-                  icon: "👧",
-                },
-                {
-                  step: "03",
-                  title: "Secure Your Session",
-                  desc: "Pay securely via card, Apple Pay, or Google Pay and you're done.",
-                  icon: "✅",
-                },
+                { step: "01", title: "Choose a Date", desc: "Pick from available Saturday or Sunday sessions in your city.", icon: "📅" },
+                { step: "02", title: "Add Your Child", desc: "Enter your child's details. You can add multiple children at once.", icon: "👧" },
+                { step: "03", title: "Secure Your Session", desc: "Pay securely via card, Apple Pay, or Google Pay and you're done.", icon: "✅" },
               ].map((item) => (
                 <motion.div
                   key={item.step}
@@ -176,8 +192,8 @@ export default function Home() {
             >
               {[
                 { label: "Days", value: "Sat & Sun", icon: "🗓️" },
-                { label: "Duration", value: "45 Minutes", icon: "⏱️" },
-                { label: "Locations", value: "London & Manchester", icon: "📍" },
+                { label: "Duration", value: duration, icon: "⏱️" },
+                { label: "Locations", value: locationsStr, icon: "📍" },
               ].map((item) => (
                 <motion.div
                   key={item.label}
@@ -209,7 +225,7 @@ export default function Home() {
                 Meet the Coaches &amp; Founder
               </h2>
               <p className="mt-4 text-slate-600 dark:text-slate-300 leading-relaxed">
-                Led by Affy Morris — former Jamaican international and UK Netball Superleague player. Now dedicated to coaching the next generation of stars.
+                {coachesTeaserText}
               </p>
               <Link
                 href="/about"
@@ -262,14 +278,14 @@ export default function Home() {
               className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto"
             >
               <div className="border-2 border-purple-200 dark:border-purple-800 rounded-2xl p-6 text-center">
-                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£100</div>
+                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£{(satPricePence / 100).toFixed(0)}</div>
                 <div className="text-purple-600 dark:text-purple-400 font-semibold text-sm mt-1">per month</div>
                 <div className="mt-3 text-slate-600 dark:text-slate-300 text-sm font-medium">All Saturdays</div>
                 <div className="text-slate-400 dark:text-slate-500 text-xs mt-1">~4 sessions / month</div>
               </div>
               <div className="border-2 border-yellow-400 rounded-2xl p-6 text-center relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-slate-900 text-xs font-bold px-3 py-0.5 rounded-full">Best Value</div>
-                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£160</div>
+                <div className="text-2xl font-extrabold text-slate-900 dark:text-white">£{(bothPricePence / 100).toFixed(0)}</div>
                 <div className="text-yellow-600 dark:text-yellow-400 font-semibold text-sm mt-1">per month</div>
                 <div className="mt-3 text-slate-600 dark:text-slate-300 text-sm font-medium">Saturdays &amp; Sundays</div>
                 <div className="text-slate-400 dark:text-slate-500 text-xs mt-1">Up to ~8 sessions / month</div>
@@ -305,9 +321,7 @@ export default function Home() {
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
               Ready to start their netball journey?
             </h2>
-            <p className="mt-4 text-slate-600 dark:text-slate-300">
-              Your child&apos;s first session is on us — no card needed. After that, it&apos;s just £30 per session.
-            </p>
+            <p className="mt-4 text-slate-600 dark:text-slate-300">{ctaDesc}</p>
             <Link
               href="/booking"
               className="inline-block mt-8 bg-purple-600 hover:bg-purple-700 text-white px-10 py-4 rounded-full text-lg font-bold shadow-lg transition-transform hover:scale-105"

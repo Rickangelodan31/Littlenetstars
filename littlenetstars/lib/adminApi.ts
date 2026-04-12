@@ -135,6 +135,23 @@ export async function saveSettings(token: string, data: Record<string, string>):
   if (!res.ok) throw new Error("Failed to save settings");
 }
 
+// ── Subscriptions ─────────────────────────────────────────────────
+export interface SubscriptionRecord {
+  _id: string;
+  email: string;
+  name: string;
+  plan: "saturdays" | "both";
+  status: "active" | "cancelled" | "past_due" | "pending";
+  currentPeriodEnd?: string;
+  createdAt: string;
+}
+
+export async function fetchSubscriptions(token: string): Promise<SubscriptionRecord[]> {
+  const res = await fetch(`${API}/api/admin/subscriptions`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("Failed to fetch subscriptions");
+  return res.json();
+}
+
 // ── Bookings ───────────────────────────────────────────────────────
 export interface BookingRecord {
   _id: string;

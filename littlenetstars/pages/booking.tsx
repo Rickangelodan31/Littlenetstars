@@ -457,15 +457,15 @@ export default function Booking() {
               </div>
             )}
 
-            {/* Navigation buttons */}
-            {step !== 4 && (
-              <div className="flex justify-between mt-8">
-                <button
-                  onClick={() => step > 1 ? setStep((step - 1) as Step) : router.back()}
-                  className="text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                >
-                  ← Back
-                </button>
+            {/* Navigation buttons — back on all steps, continue on 1–3 */}
+            <div className="flex justify-between mt-8">
+              <button
+                onClick={() => step > 1 ? setStep((step - 1) as Step) : router.push("/")}
+                className="text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                ← Back
+              </button>
+              {step !== 4 && (
                 <button
                   onClick={handleContinue}
                   disabled={
@@ -477,8 +477,8 @@ export default function Booking() {
                 >
                   Continue →
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </motion.div>
         </div>
       </main>

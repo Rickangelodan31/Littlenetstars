@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
+import dbConnect from "@/lib/mongodb";
+import Setting from "@/lib/models/Setting";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.littlenetstars.co.uk";
 
-const PLANS = {
+const PLAN_DEFAULTS = {
   saturdays: {
     amount: 10000,
     name: "LittleNetStars – Saturday Sessions",
@@ -29,11 +31,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!plan || !email || !name) {
     return res.status(400).json({ error: "plan, email and name are required" });
   }
-  if (!(plan in PLANS)) {
+  if (!(plan in PLAN_DEFAULTS)) {
     return res.status(400).json({ error: "Invalid plan" });
   }
 
-  const config = PLANS[plan];
+  // Read pricing from Settings DB (falls back to defaults)
+  let saturdayPrice: number = PLAN_DEFAULTS.saturdays.amount;
+  let bothPrice: number = PLAN_DEFAULTS.both.amount;
+  try {
+    await dbConnect();
+    const satSetting = await Setting.findOne({ key: "plan_saturday_price" });
+    const bothSetting = await Setting.findOne({ key: "plan_both_price" });
+    if (satSetting?.value) saturdayPrice = Number(satSetting.value);
+    if (bothSetting?.value) bothPrice = Number(bothSetting.value);
+  } catch { /* use defaults */ }
+
+  const amount: number = plan === "saturdays" ? saturdayPrice : bothPrice;
+  const config: { name: string; description: string } = PLAN_DEFAULTS[plan];
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
@@ -42,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       {
         price_data: {
           currency: "gbp",
-          unit_amount: config.amount,
+          unit_amount: amount,
           recurring: { interval: "month" },
           product_data: { name: config.name, description: config.description },
         },

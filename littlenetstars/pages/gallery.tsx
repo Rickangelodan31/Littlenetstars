@@ -1,23 +1,50 @@
 import Head from "next/head";
-import Image from "next/image";
 import { motion } from "framer-motion";
+import type { GetServerSideProps } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import dbConnect from "@/lib/mongodb";
+import GalleryImage from "@/lib/models/GalleryImage";
+import Setting from "@/lib/models/Setting";
 
-const images = [
-  { src: "/gallery/gallery1.jpg", caption: "Jamaica Sunshine Girls in action" },
-  { src: "/gallery/gallery2.jpg", caption: "Netball match day" },
-  { src: "/gallery/gallery3.jpg", caption: "Training session" },
-  { src: "/gallery/gallery4.jpg", caption: "EMMNA Nationals 2021" },
-  { src: "/gallery/gallery5.jpg", caption: "Netball court" },
-  { src: "/gallery/gallery6.jpg", caption: "Netball community programme" },
-];
+interface GalleryItem {
+  _id: string;
+  imageUrl: string;
+  caption: string;
+  order: number;
+}
 
-export default function Gallery() {
+interface Props {
+  images: GalleryItem[];
+  title: string;
+  subtitle: string;
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
+  try {
+    await dbConnect();
+    const [imgs, titleSetting, subtitleSetting] = await Promise.all([
+      GalleryImage.find({}).sort({ order: 1, createdAt: -1 }).lean(),
+      Setting.findOne({ key: "gallery_title" }),
+      Setting.findOne({ key: "gallery_subtitle" }),
+    ]);
+    return {
+      props: {
+        images: JSON.parse(JSON.stringify(imgs)),
+        title: titleSetting?.value || "Gallery",
+        subtitle: subtitleSetting?.value || "Moments from the court",
+      },
+    };
+  } catch {
+    return { props: { images: [], title: "Gallery", subtitle: "Moments from the court" } };
+  }
+};
+
+export default function Gallery({ images, title, subtitle }: Props) {
   return (
     <>
       <Head>
-        <title>Gallery – LittleNetStars</title>
+        <title>{title} – LittleNetStars</title>
         <meta name="description" content="Photos from LittleNetStars sessions." />
       </Head>
 
@@ -31,34 +58,40 @@ export default function Gallery() {
             transition={{ duration: 0.5 }}
             className="text-center mb-12"
           >
-            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white">Gallery</h1>
-            <p className="mt-3 text-slate-500 dark:text-slate-400">Moments from the court</p>
+            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white">{title}</h1>
+            <p className="mt-3 text-slate-500 dark:text-slate-400">{subtitle}</p>
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {images.map((img, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow group"
-              >
-                <Image
-                  src={img.src}
-                  alt={img.caption}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  style={{ objectFit: "cover" }}
-                  className="group-hover:scale-105 transition-transform duration-500"
-                  priority={i === 0}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                  <p className="text-white text-sm font-medium">{img.caption}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          {images.length === 0 ? (
+            <div className="text-center py-20 text-slate-400 dark:text-slate-500">
+              <div className="text-5xl mb-4">📸</div>
+              <p>Gallery coming soon — check back after our first sessions.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {images.map((img, i) => (
+                <motion.div
+                  key={img._id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: i * 0.08 }}
+                  className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow group"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.imageUrl}
+                    alt={img.caption}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  {img.caption && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                      <p className="text-white text-sm font-medium">{img.caption}</p>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
