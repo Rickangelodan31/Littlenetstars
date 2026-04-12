@@ -21,11 +21,28 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "subscriptions", label: "Subscriptions",  icon: "⭐" },
 ];
 
-function fileToDataUri(file: File): Promise<string> {
+/** Compress image via canvas before encoding — keeps files small enough for MongoDB/Next.js */
+function fileToDataUri(file: File, maxPx = 1400): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
     reader.onerror = reject;
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) { height = Math.round((height * maxPx) / width); width = maxPx; }
+          else                 { width  = Math.round((width  * maxPx) / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = src;
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -59,6 +76,13 @@ export default function AdminDashboard() {
   const [editingCoach, setEditingCoach] = useState<string | null>(null);
   const [coachMsg, setCoachMsg] = useState("");
   const coachPhotoRef = useRef<HTMLInputElement>(null);
+  // Inline quick-photo-update per coach card
+  const [quickPhotoCoachId, setQuickPhotoCoachId] = useState<string | null>(null);
+  const quickPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Gallery replace mode (one image at a time)
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+  const replaceFileRef = useRef<HTMLInputElement>(null);
 
   // Subscriptions
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
@@ -143,12 +167,36 @@ export default function AdminDashboard() {
     setImages((p) => p.map((i) => i._id === id ? updated : i));
   }
 
+  async function handleReplaceImage(id: string) {
+    if (!token || !replaceFileRef.current?.files?.[0]) return;
+    try {
+      const dataUri = await fileToDataUri(replaceFileRef.current.files[0]);
+      const updated = await updateGalleryImage(token, id, { imageUrl: dataUri });
+      setImages((p) => p.map((i) => i._id === id ? updated : i));
+      setReplacingImageId(null);
+      if (replaceFileRef.current) replaceFileRef.current.value = "";
+      setGalleryMsg("Image replaced.");
+    } catch { setGalleryMsg("Replace failed."); }
+  }
+
   // ── Coaches ──────────────────────────────────────────────────────
   async function handleCoachPhotoUpload() {
     if (!coachPhotoRef.current?.files?.[0]) return;
-    const dataUri = await fileToDataUri(coachPhotoRef.current.files[0]);
+    const dataUri = await fileToDataUri(coachPhotoRef.current.files[0], 800);
     setCoachForm((f) => ({ ...f, photoUrl: dataUri }));
     if (coachPhotoRef.current) coachPhotoRef.current.value = "";
+  }
+
+  async function handleQuickPhotoUpdate(coachId: string) {
+    if (!token || !quickPhotoRef.current?.files?.[0]) return;
+    try {
+      const dataUri = await fileToDataUri(quickPhotoRef.current.files[0], 800);
+      const updated = await updateCoach(token, coachId, { photoUrl: dataUri });
+      setCoaches((p) => p.map((c) => c._id === coachId ? updated : c));
+      setQuickPhotoCoachId(null);
+      if (quickPhotoRef.current) quickPhotoRef.current.value = "";
+      setCoachMsg("Photo updated.");
+    } catch { setCoachMsg("Photo update failed."); }
   }
 
   async function handleSaveCoach(e: React.FormEvent) {
@@ -575,14 +623,43 @@ export default function AdminDashboard() {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={img.imageUrl} alt={img.caption} className="w-full h-full object-cover" />
                           </div>
-                          {/* Caption + controls — always visible below image */}
+
+                          {/* Controls — always visible */}
                           <div className="p-2 space-y-2">
+                            {/* Caption */}
                             <input
                               defaultValue={img.caption}
                               placeholder="Add caption…"
                               onBlur={(e) => { if (e.target.value !== img.caption) handleUpdateCaption(img._id, e.target.value); }}
                               className="w-full text-xs border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-purple-400"
                             />
+
+                            {/* Replace image */}
+                            {replacingImageId === img._id ? (
+                              <div className="space-y-1">
+                                <input ref={replaceFileRef} type="file" accept="image/*"
+                                  className="text-xs text-slate-500 w-full" />
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleReplaceImage(img._id)}
+                                    className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white py-1 rounded-md font-semibold"
+                                  >Save</button>
+                                  <button
+                                    onClick={() => setReplacingImageId(null)}
+                                    className="text-xs px-2 py-1 text-slate-400 hover:text-slate-600 rounded-md"
+                                  >Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setReplacingImageId(img._id)}
+                                className="w-full text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-medium py-1.5 rounded-lg transition-colors"
+                              >
+                                🔄 Replace Image
+                              </button>
+                            )}
+
+                            {/* Delete */}
                             <button
                               onClick={() => handleDeleteImage(img._id)}
                               className="w-full text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold py-1.5 rounded-lg transition-colors"
@@ -602,7 +679,12 @@ export default function AdminDashboard() {
             {tab === "coaches" && (
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Coaches</h2>
-                <p className="text-xs text-slate-400">Coaches added here appear on the About page. The first coach (lowest order number) is shown as the founder/hero.</p>
+
+                {/* Info banner */}
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-sm text-purple-800 dark:text-purple-200">
+                  <strong>How this works:</strong> Coaches you add here appear on the <strong>About page</strong>. The coach with the lowest order number is shown as the founder/hero with their full photo and bio. Add <strong>Affy Morris</strong> here to show her photo on the site — use order <strong>0</strong> to make her the primary coach.
+                </div>
+
                 {coachMsg && <p className="text-sm text-green-600 dark:text-green-400">{coachMsg}</p>}
 
                 <div className={sectionCls}>
@@ -673,24 +755,78 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-3">
-                  {coaches.length === 0 && <p className="text-slate-400 text-sm">No coaches yet. Add one above.</p>}
+                  {coaches.length === 0 && <p className="text-slate-400 text-sm">No coaches yet. Add Affy Morris above to get started.</p>}
                   {coaches.map((coach) => (
-                    <div key={coach._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-800 dark:to-yellow-900 flex items-center justify-center shrink-0 text-sm font-bold text-purple-600 overflow-hidden">
-                        {coach.photoUrl
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
-                          : coach.name.split(" ").map((n) => n[0]).join("").slice(0,2).toUpperCase()}
+                    <div key={coach._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-start gap-4">
+                        {/* Photo — large, clickable to update */}
+                        <div className="shrink-0">
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-800 dark:to-yellow-900 flex items-center justify-center text-sm font-bold text-purple-600 overflow-hidden">
+                            {coach.photoUrl
+                              // eslint-disable-next-line @next/next/no-img-element
+                              ? <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
+                              : coach.name.split(" ").map((n) => n[0]).join("").slice(0,2).toUpperCase()}
+                          </div>
+                          {!coach.photoUrl && (
+                            <p className="text-xs text-center text-slate-400 mt-1">No photo</p>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 dark:text-white">{coach.name}</p>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">{coach.title}</p>
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{coach.bio}</p>
+                          <p className="text-xs text-slate-300 dark:text-slate-600 mt-0.5">Display order: {coach.order}</p>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <button onClick={() => startEditCoach(coach)}
+                            className="text-xs bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 font-semibold px-3 py-1.5 rounded-lg">
+                            Edit Details
+                          </button>
+                          <button onClick={() => handleDeleteCoach(coach._id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium text-right">
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-900 dark:text-white text-sm">{coach.name}</p>
-                        <p className="text-xs text-purple-600 dark:text-purple-400">{coach.title}</p>
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{coach.bio}</p>
-                        <p className="text-xs text-slate-300 dark:text-slate-600 mt-0.5">Order: {coach.order}</p>
-                      </div>
-                      <div className="flex flex-col gap-1 shrink-0">
-                        <button onClick={() => startEditCoach(coach)} className="text-xs text-purple-600 hover:text-purple-800 font-medium">Edit</button>
-                        <button onClick={() => handleDeleteCoach(coach._id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+
+                      {/* Inline photo update — always visible */}
+                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
+                          📷 {coach.photoUrl ? "Update Photo" : "Upload Photo"} for {coach.name.split(" ")[0]}
+                        </p>
+                        {quickPhotoCoachId === coach._id ? (
+                          <div className="space-y-2">
+                            <input
+                              ref={quickPhotoRef}
+                              type="file"
+                              accept="image/*"
+                              className="text-sm text-slate-500 dark:text-slate-400 w-full"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleQuickPhotoUpdate(coach._id)}
+                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold py-2 rounded-lg"
+                              >
+                                Save Photo
+                              </button>
+                              <button
+                                onClick={() => setQuickPhotoCoachId(null)}
+                                className="text-xs text-slate-400 hover:text-slate-600 px-3"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setQuickPhotoCoachId(coach._id)}
+                            className="w-full text-xs border-2 border-dashed border-slate-200 dark:border-slate-600 hover:border-purple-400 dark:hover:border-purple-500 text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 py-2 rounded-lg transition-colors font-medium"
+                          >
+                            {coach.photoUrl ? "🔄 Replace Photo" : "📤 Upload Photo"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

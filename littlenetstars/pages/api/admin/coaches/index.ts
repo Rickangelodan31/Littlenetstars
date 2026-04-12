@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import dbConnect from "@/lib/mongodb";
 import Coach from "@/lib/models/Coach";
 
+export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
+
 function isAdmin(req: NextApiRequest) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return false;
