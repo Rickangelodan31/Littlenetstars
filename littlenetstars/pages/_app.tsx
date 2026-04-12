@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { useEffect } from "react";
+import ChatWidget from "@/components/ChatWidget";
 
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
@@ -10,5 +11,10 @@ export default function App({ Component, pageProps }: AppProps) {
     document.documentElement.classList.add(theme);
   }, []);
 
-  return <Component {...pageProps} />;
+  return (
+    <>
+      <Component {...pageProps} />
+      <ChatWidget />
+    </>
+  );
 }
