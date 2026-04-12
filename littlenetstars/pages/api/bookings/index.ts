@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import dbConnect from "@/lib/mongodb";
 import Booking from "@/lib/models/Booking";
+import { sendBookingConfirmation } from "@/lib/email";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -37,6 +38,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       status: isFreeSession ? "paid" : "pending_payment",
       amountPaid: isFreeSession ? 0 : undefined,
     });
+    // Send confirmation email for free sessions immediately
+    if (isFreeSession) {
+      sendBookingConfirmation({
+        to: parent.email,
+        parentName: parent.name,
+        location,
+        date: bookingDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+        time,
+        children,
+        isFreeSession: true,
+        amountPaid: 0,
+      }).catch(console.error);
+    }
+
     res.status(201).json({ bookingId: booking._id, isFreeSession });
   } catch (err) {
     console.error("Booking create failed:", err);

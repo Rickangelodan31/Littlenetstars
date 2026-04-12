@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import dbConnect from "@/lib/mongodb";
 import Booking from "@/lib/models/Booking";
+import { sendBookingConfirmation } from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -35,11 +36,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const bookingId = session.metadata?.bookingId;
     if (bookingId) {
       await dbConnect();
-      await Booking.findByIdAndUpdate(bookingId, {
+      const booking = await Booking.findByIdAndUpdate(bookingId, {
         status: "paid",
         amountPaid: session.amount_total,
         stripeSessionId: session.id,
-      });
+      }, { new: true });
+
+      if (booking) {
+        sendBookingConfirmation({
+          to: booking.parent.email,
+          parentName: booking.parent.name,
+          location: booking.location,
+          date: new Date(booking.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+          time: booking.time,
+          children: booking.children,
+          isFreeSession: false,
+          amountPaid: session.amount_total ?? 0,
+        }).catch(console.error);
+      }
     }
   }
 
