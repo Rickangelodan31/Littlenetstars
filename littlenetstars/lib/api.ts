@@ -15,6 +15,7 @@ export type BookingData = {
   time: string;
   children: { name: string; age: number }[];
   parent: { name: string; email: string; phone: string };
+  isFreeSession?: boolean;
 };
 
 export async function checkFreeEligible(email: string): Promise<{ eligible: boolean }> {

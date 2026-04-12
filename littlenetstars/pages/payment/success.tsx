@@ -5,11 +5,11 @@ import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { verifyPayment, fetchBooking, type BookingData } from "@/lib/api";
+import { verifyPayment, type BookingData } from "@/lib/api";
 
 export default function PaymentSuccess() {
   const router = useRouter();
-  const { session_id, booking_id, type, plan } = router.query;
+  const { session_id, type, plan } = router.query;
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [booking, setBooking] = useState<BookingData | null>(null);
@@ -17,30 +17,19 @@ export default function PaymentSuccess() {
   const isSubscription = type === "subscription";
 
   useEffect(() => {
-    // Subscription success — no further verification needed
+    // Monthly plan subscription success — no further verification needed
     if (isSubscription) {
       setStatus("success");
       return;
     }
 
-    // Free session — confirmed directly, no Stripe
-    if (booking_id && typeof booking_id === "string") {
-      fetchBooking(booking_id)
-        .then((data) => {
-          setBooking(data);
-          setIsFreeSession(true);
-          setStatus("success");
-        })
-        .catch(() => setStatus("error"));
-      return;
-    }
-
-    // Paid session — verify via Stripe
+    // All bookings (free and paid) go through Stripe and return session_id
     if (session_id && typeof session_id === "string") {
       verifyPayment(session_id)
         .then((data) => {
           if (data.paid) {
             setBooking(data.booking);
+            setIsFreeSession(data.booking.isFreeSession ?? false);
             setStatus("success");
           } else {
             setStatus("error");
@@ -48,7 +37,7 @@ export default function PaymentSuccess() {
         })
         .catch(() => setStatus("error"));
     }
-  }, [session_id, booking_id, isSubscription]);
+  }, [session_id, isSubscription]);
 
   return (
     <>
@@ -181,9 +170,15 @@ export default function PaymentSuccess() {
                 </div>
               </div>
 
-              <div className="mt-4 text-xs text-center text-slate-400 dark:text-slate-500">
-                Free cancellation up to 48 hours before the session.
-              </div>
+              {isFreeSession ? (
+                <div className="mt-4 text-xs text-center text-slate-400 dark:text-slate-500">
+                  Today was FREE. You&apos;ll be charged £30/month after 30 days. Cancel anytime via the link in your confirmation email.
+                </div>
+              ) : (
+                <div className="mt-4 text-xs text-center text-slate-400 dark:text-slate-500">
+                  Free cancellation up to 48 hours before the session.
+                </div>
+              )}
 
               <Link
                 href="/"

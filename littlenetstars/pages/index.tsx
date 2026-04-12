@@ -4,7 +4,6 @@ import { motion, type Variants } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NetballAnimation from "@/components/NetballAnimation";
-import NetballShadowScene from "@/components/NetballShadowScene";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -36,9 +35,6 @@ export default function Home() {
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-300/20 dark:bg-purple-600/10 rounded-full blur-3xl" />
           </div>
-
-          {/* 3D shadow animation — netballers & umpire silhouettes */}
-          <NetballShadowScene />
 
           <motion.div
             className="relative z-10 max-w-4xl mx-auto"

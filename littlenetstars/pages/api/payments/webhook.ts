@@ -61,22 +61,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (session.mode === "subscription") {
-      const plan = session.metadata?.plan as "saturdays" | "both" | undefined;
-      const customerName = session.metadata?.customerName || "";
-      const email = session.customer_email || "";
-      if (plan && email) {
-        await Subscription.findOneAndUpdate(
-          { email },
-          {
-            email,
-            name: customerName,
-            plan,
-            stripeCustomerId: typeof session.customer === "string" ? session.customer : "",
-            stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : "",
-            status: "active",
-          },
-          { upsert: true, new: true }
-        );
+      const type = session.metadata?.type;
+
+      if (type === "free_session_subscription") {
+        // Free first session — card collected via subscription trial; mark booking paid
+        const bookingId = session.metadata?.bookingId;
+        if (bookingId) {
+          const booking = await Booking.findByIdAndUpdate(bookingId, {
+            status: "paid",
+            amountPaid: 0,
+            stripeSessionId: session.id,
+          }, { new: true });
+
+          if (booking) {
+            sendBookingConfirmation({
+              to: booking.parent.email,
+              parentName: booking.parent.name,
+              location: booking.location,
+              date: new Date(booking.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+              time: booking.time,
+              children: booking.children,
+              isFreeSession: true,
+              amountPaid: 0,
+            }).catch(console.error);
+          }
+        }
+      } else {
+        // Monthly plan subscription (£100 Saturdays / £160 Weekend)
+        const plan = session.metadata?.plan as "saturdays" | "both" | undefined;
+        const customerName = session.metadata?.customerName || "";
+        const email = session.customer_email || "";
+        if (plan && email) {
+          await Subscription.findOneAndUpdate(
+            { email },
+            {
+              email,
+              name: customerName,
+              plan,
+              stripeCustomerId: typeof session.customer === "string" ? session.customer : "",
+              stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : "",
+              status: "active",
+            },
+            { upsert: true, new: true }
+          );
+        }
       }
     }
   }

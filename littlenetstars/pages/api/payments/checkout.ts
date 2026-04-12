@@ -17,30 +17,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (booking.status === "paid") return res.status(400).json({ error: "Booking already paid" });
 
-  const pricePerChild = Number(process.env.SESSION_PRICE_PENCE) || 3000;
-  const totalAmount = pricePerChild * booking.children.length;
+  let session: Stripe.Checkout.Session;
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    line_items: [{
-      price_data: {
-        currency: "gbp",
-        product_data: {
-          name: "LittleNetStars – Netball Session",
-          description: `${booking.location} · ${new Date(booking.date).toLocaleDateString("en-GB", {
-            weekday: "long", day: "numeric", month: "long",
-          })} · ${booking.time} · ${booking.children.length} child${booking.children.length > 1 ? "ren" : ""}`,
+  if (booking.isFreeSession) {
+    // Free first session — collect card, charge £0 today, then £30/month recurring
+    // Customer can cancel anytime before next billing cycle
+    session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "gbp",
+          product_data: {
+            name: "LittleNetStars – Monthly Sessions",
+            description: "Your first session is FREE. £30/month from next billing cycle. Cancel anytime.",
+          },
+          unit_amount: 3000,
+          recurring: { interval: "month" },
         },
-        unit_amount: totalAmount,
+        quantity: 1,
+      }],
+      customer_email: booking.parent.email,
+      metadata: {
+        bookingId: booking._id.toString(),
+        type: "free_session_subscription",
       },
-      quantity: 1,
-    }],
-    customer_email: booking.parent.email,
-    metadata: { bookingId: booking._id.toString() },
-    mode: "payment",
-    success_url: `${SITE_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${SITE_URL}/booking`,
-  });
+      mode: "subscription",
+      subscription_data: {
+        trial_period_days: 30,
+        metadata: {
+          bookingId: booking._id.toString(),
+          type: "free_session_subscription",
+        },
+      },
+      success_url: `${SITE_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${SITE_URL}/booking`,
+    });
+  } else {
+    const pricePerChild = Number(process.env.SESSION_PRICE_PENCE) || 3000;
+    const totalAmount = pricePerChild * booking.children.length;
+
+    session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "gbp",
+          product_data: {
+            name: "LittleNetStars – Netball Session",
+            description: `${booking.location} · ${new Date(booking.date).toLocaleDateString("en-GB", {
+              weekday: "long", day: "numeric", month: "long",
+            })} · ${booking.time} · ${booking.children.length} child${booking.children.length > 1 ? "ren" : ""}`,
+          },
+          unit_amount: totalAmount,
+        },
+        quantity: 1,
+      }],
+      customer_email: booking.parent.email,
+      metadata: { bookingId: booking._id.toString() },
+      mode: "payment",
+      success_url: `${SITE_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${SITE_URL}/booking`,
+    });
+  }
 
   booking.stripeSessionId = session.id;
   await booking.save();

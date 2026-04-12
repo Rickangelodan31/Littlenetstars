@@ -25,7 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Booking not found", bookingId: session.metadata?.bookingId });
     }
 
-    res.json({ paid: session.payment_status === "paid", booking });
+    // subscription trial sessions have payment_status "no_payment_required" — treat as paid
+    const isPaid = session.payment_status === "paid" || session.payment_status === "no_payment_required";
+    res.json({ paid: isPaid, booking });
   } catch (err) {
     console.error("verify error:", err);
     res.status(500).json({ error: "Verification failed", detail: String(err) });

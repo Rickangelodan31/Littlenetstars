@@ -1,9 +1,14 @@
 import Head from "next/head";
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { checkFreeEligible, createBooking, createCheckoutSession } from "@/lib/api";
+import {
+  checkFreeEligible,
+  createBooking,
+  createCheckoutSession,
+} from "@/lib/api";
 
 type Child = {
   name: string;
@@ -17,6 +22,7 @@ const LOCATIONS = ["London", "Manchester"];
 type Step = 1 | 2 | 3 | 4;
 
 export default function Booking() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [location, setLocation] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -32,7 +38,9 @@ export default function Booking() {
   }
 
   function updateChild(index: number, field: keyof Child, value: string) {
-    setChildren(children.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
+    setChildren(
+      children.map((c, i) => (i === index ? { ...c, [field]: value } : c)),
+    );
   }
 
   function removeChild(index: number) {
@@ -45,7 +53,8 @@ export default function Booking() {
     const day = new Date(selectedDate).getUTCDay();
     return day === 0 || day === 6;
   })();
-  const canProceedStep1 = location && selectedDate && selectedDateIsWeekend && selectedTime;
+  const canProceedStep1 =
+    location && selectedDate && selectedDateIsWeekend && selectedTime;
   const canProceedStep2 = children.every((c) => c.name && c.age);
   const canProceedStep3 = parent.name && parent.email && parent.phone;
 
@@ -64,7 +73,10 @@ export default function Booking() {
     <>
       <Head>
         <title>Book a Session – LittleNetStars</title>
-        <meta name="description" content="Book a netball session for your child with LittleNetStars." />
+        <meta
+          name="description"
+          content="Book a netball session for your child with LittleNetStars."
+        />
       </Head>
 
       <Navbar />
@@ -82,7 +94,7 @@ export default function Booking() {
               Book a Session
             </h1>
             <p className="mt-2 text-slate-500 dark:text-slate-400">
-              Saturdays & Sundays · 30 min sessions · London & Manchester
+              Saturdays & Sundays · 45 min sessions · London & Manchester
             </p>
             <div className="mt-3 inline-flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold px-3 py-1.5 rounded-full">
               <span>🎉</span> First session is FREE — no payment needed
@@ -96,19 +108,24 @@ export default function Booking() {
               const active = num === step;
               const done = num < step;
               return (
-                <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                <div
+                  key={label}
+                  className="flex-1 flex flex-col items-center gap-1"
+                >
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
                       done
                         ? "bg-purple-600 text-white"
                         : active
-                        ? "bg-purple-600 text-white ring-4 ring-purple-200 dark:ring-purple-900"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-400"
+                          ? "bg-purple-600 text-white ring-4 ring-purple-200 dark:ring-purple-900"
+                          : "bg-slate-200 dark:bg-slate-700 text-slate-400"
                     }`}
                   >
                     {done ? "✓" : num}
                   </div>
-                  <span className={`text-xs hidden sm:block ${active ? "text-purple-600 dark:text-purple-400 font-semibold" : "text-slate-400"}`}>
+                  <span
+                    className={`text-xs hidden sm:block ${active ? "text-purple-600 dark:text-purple-400 font-semibold" : "text-slate-400"}`}
+                  >
                     {label}
                   </span>
                 </div>
@@ -127,10 +144,14 @@ export default function Booking() {
             {/* STEP 1: Date & Time */}
             {step === 1 && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Select Date & Time</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  Select Date & Time
+                </h2>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Location</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Location
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                     {LOCATIONS.map((loc) => (
                       <button
@@ -150,7 +171,10 @@ export default function Booking() {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Date <span className="text-slate-400 font-normal">(Weekends only)</span>
+                    Date{" "}
+                    <span className="text-slate-400 font-normal">
+                      (Weekends only)
+                    </span>
                   </label>
                   <input
                     type="date"
@@ -160,12 +184,16 @@ export default function Booking() {
                     className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   {selectedDate && !selectedDateIsWeekend && (
-                    <p className="mt-2 text-xs text-red-500">Please select a Saturday or Sunday.</p>
+                    <p className="mt-2 text-xs text-red-500">
+                      Please select a Saturday or Sunday.
+                    </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Session Time</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    Session Time
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                     {TIMES.map((t) => (
                       <button
@@ -188,9 +216,14 @@ export default function Booking() {
             {/* STEP 2: Child Details */}
             {step === 2 && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Child Details</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  Child Details
+                </h2>
                 {children.map((child, i) => (
-                  <div key={i} className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 space-y-3">
+                  <div
+                    key={i}
+                    className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 space-y-3"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         Child {i + 1}
@@ -234,11 +267,28 @@ export default function Booking() {
             {/* STEP 3: Parent Info */}
             {step === 3 && (
               <div className="space-y-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Parent / Guardian Details</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  Parent / Guardian Details
+                </h2>
                 {[
-                  { label: "Full Name", key: "name", type: "text", placeholder: "Your full name" },
-                  { label: "Email Address", key: "email", type: "email", placeholder: "you@example.com" },
-                  { label: "Phone Number", key: "phone", type: "tel", placeholder: "+44 7700 000000" },
+                  {
+                    label: "Full Name",
+                    key: "name",
+                    type: "text",
+                    placeholder: "Your full name",
+                  },
+                  {
+                    label: "Email Address",
+                    key: "email",
+                    type: "email",
+                    placeholder: "you@example.com",
+                  },
+                  {
+                    label: "Phone Number",
+                    key: "phone",
+                    type: "tel",
+                    placeholder: "+44 7700 000000",
+                  },
                 ].map((field) => (
                   <div key={field.key}>
                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -248,7 +298,9 @@ export default function Booking() {
                       type={field.type}
                       placeholder={field.placeholder}
                       value={parent[field.key as keyof typeof parent]}
-                      onChange={(e) => setParent({ ...parent, [field.key]: e.target.value })}
+                      onChange={(e) =>
+                        setParent({ ...parent, [field.key]: e.target.value })
+                      }
                       className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                     />
                   </div>
@@ -260,7 +312,9 @@ export default function Booking() {
             {step === 4 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Review Your Booking</h2>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Review Your Booking
+                  </h2>
                   {isFreeSession ? (
                     <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold px-3 py-1.5 rounded-full">
                       🎉 FREE SESSION
@@ -274,18 +328,39 @@ export default function Booking() {
 
                 <div className="space-y-4">
                   <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Session</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                      Session
+                    </h3>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Location</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">{location}</span>
-                      <span className="text-slate-500 dark:text-slate-400">Date</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">
-                        {new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Location
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400">Time</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">{selectedTime}</span>
-                      <span className="text-slate-500 dark:text-slate-400">Duration</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">30 minutes</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {location}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Date
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {new Date(selectedDate).toLocaleDateString("en-GB", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Time
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {selectedTime}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Duration
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        45 minutes
+                      </span>
                     </div>
                   </div>
 
@@ -294,27 +369,44 @@ export default function Booking() {
                       Children ({children.length})
                     </h3>
                     {children.map((c, i) => (
-                      <div key={i} className="text-sm text-slate-700 dark:text-slate-300">
+                      <div
+                        key={i}
+                        className="text-sm text-slate-700 dark:text-slate-300"
+                      >
                         {c.name}, age {c.age}
                       </div>
                     ))}
                   </div>
 
                   <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Parent</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                      Parent
+                    </h3>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Name</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">{parent.name}</span>
-                      <span className="text-slate-500 dark:text-slate-400">Email</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">{parent.email}</span>
-                      <span className="text-slate-500 dark:text-slate-400">Phone</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">{parent.phone}</span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Name
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {parent.name}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Email
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {parent.email}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Phone
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {parent.phone}
+                      </span>
                     </div>
                   </div>
 
                   {isFreeSession ? (
                     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
-                      Your first session is completely free — no card details required. Book again after this and it will be £30 per child.
+                      <strong>Your first session is FREE (£0 today).</strong> After 30 days, you&apos;ll be charged £30/month. Cancel anytime before your next billing date to avoid the charge.
                     </div>
                   ) : (
                     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-sm text-purple-700 dark:text-purple-300">
@@ -335,21 +427,22 @@ export default function Booking() {
                     setError("");
                     setLoading(true);
                     try {
-                      const { bookingId, isFreeSession: free } = await createBooking({
-                        location,
-                        date: selectedDate,
-                        time: selectedTime,
-                        children,
-                        parent,
-                      });
-                      if (free) {
-                        window.location.href = `/payment/success?booking_id=${bookingId}`;
-                      } else {
-                        const { url } = await createCheckoutSession(bookingId);
-                        window.location.href = url;
-                      }
+                      const { bookingId } =
+                        await createBooking({
+                          location,
+                          date: selectedDate,
+                          time: selectedTime,
+                          children,
+                          parent,
+                        });
+                      const { url } = await createCheckoutSession(bookingId);
+                      window.location.href = url;
                     } catch (err) {
-                      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Something went wrong. Please try again.",
+                      );
                       setLoading(false);
                     }
                   }}
@@ -358,8 +451,8 @@ export default function Booking() {
                   {loading
                     ? "Processing..."
                     : isFreeSession
-                    ? "Confirm Free Session"
-                    : "Proceed to Payment"}
+                      ? "Confirm Free Session (£0 Today)"
+                      : "Proceed to Payment"}
                 </button>
               </div>
             )}
@@ -367,16 +460,12 @@ export default function Booking() {
             {/* Navigation buttons */}
             {step !== 4 && (
               <div className="flex justify-between mt-8">
-                {step > 1 ? (
-                  <button
-                    onClick={() => setStep((step - 1) as Step)}
-                    className="text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                  >
-                    ← Back
-                  </button>
-                ) : (
-                  <span />
-                )}
+                <button
+                  onClick={() => step > 1 ? setStep((step - 1) as Step) : router.back()}
+                  className="text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                >
+                  ← Back
+                </button>
                 <button
                   onClick={handleContinue}
                   disabled={
