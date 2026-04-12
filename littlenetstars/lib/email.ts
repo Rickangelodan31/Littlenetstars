@@ -27,7 +27,7 @@ export async function sendBookingConfirmation(params: BookingEmailParams) {
   }
 
   const { error } = await resend.emails.send({
-    from: "LittleNetStars <bookings@littlenetstars.co.uk>",
+    from: process.env.EMAIL_FROM || "LittleNetStars <onboarding@resend.dev>",
     to,
     subject: "Booking Confirmed – LittleNetStars",
     html: `
