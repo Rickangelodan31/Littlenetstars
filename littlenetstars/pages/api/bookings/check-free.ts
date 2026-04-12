@@ -7,10 +7,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: "email is required" });
 
-  await dbConnect();
-  const existing = await Booking.findOne({
-    "parent.email": String(email).toLowerCase().trim(),
-    isFreeSession: true,
-  });
-  res.json({ eligible: !existing });
+  try {
+    await dbConnect();
+    const existing = await Booking.findOne({
+      "parent.email": String(email).toLowerCase().trim(),
+      isFreeSession: true,
+    });
+    res.json({ eligible: !existing });
+  } catch (err) {
+    console.error("check-free failed:", err);
+    res.status(500).json({ error: "Server error", detail: String(err) });
+  }
 }

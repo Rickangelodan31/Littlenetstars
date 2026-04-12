@@ -5,7 +5,13 @@ import Booking from "@/lib/models/Booking";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
-  await dbConnect();
+  try {
+    await dbConnect();
+  } catch (err) {
+    console.error("DB connect failed:", err);
+    return res.status(500).json({ error: "Database connection failed", detail: String(err) });
+  }
+
   const { location, date, time, children, parent } = req.body;
 
   if (!location || !date || !time || !children?.length || !parent?.email) {
@@ -24,12 +30,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
   const isFreeSession = !existingFree;
 
-  const booking = await Booking.create({
-    location, date: bookingDate, time, children, parent,
-    isFreeSession,
-    status: isFreeSession ? "paid" : "pending_payment",
-    amountPaid: isFreeSession ? 0 : undefined,
-  });
-
-  res.status(201).json({ bookingId: booking._id, isFreeSession });
+  try {
+    const booking = await Booking.create({
+      location, date: bookingDate, time, children, parent,
+      isFreeSession,
+      status: isFreeSession ? "paid" : "pending_payment",
+      amountPaid: isFreeSession ? 0 : undefined,
+    });
+    res.status(201).json({ bookingId: booking._id, isFreeSession });
+  } catch (err) {
+    console.error("Booking create failed:", err);
+    res.status(500).json({ error: "Failed to create booking", detail: String(err) });
+  }
 }
