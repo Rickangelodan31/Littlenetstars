@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 interface BookingEmailParams {
   to: string;
@@ -20,6 +20,11 @@ export async function sendBookingConfirmation(params: BookingEmailParams) {
   const priceText = isFreeSession
     ? "🎉 FREE – your first session is on us!"
     : `£${((amountPaid ?? 0) / 100).toFixed(2)} paid`;
+
+  if (!resend) {
+    console.warn("RESEND_API_KEY not set — skipping confirmation email");
+    return;
+  }
 
   const { error } = await resend.emails.send({
     from: "LittleNetStars <bookings@littlenetstars.co.uk>",
