@@ -11,10 +11,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { session_id } = req.query;
   if (!session_id) return res.status(400).json({ error: "session_id required" });
 
-  const session = await stripe.checkout.sessions.retrieve(String(session_id));
-  await dbConnect();
-  const booking = await Booking.findById(session.metadata?.bookingId);
-  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  try {
+    const session = await stripe.checkout.sessions.retrieve(String(session_id));
 
-  res.json({ paid: session.payment_status === "paid", booking });
+    try {
+      await dbConnect();
+    } catch (dbErr) {
+      return res.status(500).json({ error: "DB connection failed", detail: String(dbErr) });
+    }
+
+    const booking = await Booking.findById(session.metadata?.bookingId);
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found", bookingId: session.metadata?.bookingId });
+    }
+
+    res.json({ paid: session.payment_status === "paid", booking });
+  } catch (err) {
+    console.error("verify error:", err);
+    res.status(500).json({ error: "Verification failed", detail: String(err) });
+  }
 }
