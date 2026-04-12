@@ -160,7 +160,7 @@ export interface BookingRecord {
   time: string;
   children: { name: string; age: number }[];
   parent: { name: string; email: string; phone: string };
-  status: string;
+  status: "pending_payment" | "paid" | "cancelled" | "refunded";
   isFreeSession: boolean;
   amountPaid?: number;
   createdAt: string;
@@ -178,4 +178,16 @@ export async function deleteBooking(token: string, id: string): Promise<void> {
     headers: authHeaders(token),
   });
   if (!res.ok) throw new Error("Delete failed");
+}
+
+export async function refundBooking(token: string, bookingId: string): Promise<void> {
+  const res = await fetch(`${API}/api/admin/bookings/refund`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ bookingId }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Refund failed");
+  }
 }

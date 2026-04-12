@@ -2,7 +2,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useState, useRef } from "react";
 import {
-  verifyAdmin, fetchAllBookings, deleteBooking,
+  verifyAdmin, fetchAllBookings, deleteBooking, refundBooking,
   fetchSettings, saveSettings,
   fetchGallery, addGalleryByUrl, updateGalleryImage, deleteGalleryImage,
   fetchCoaches, addCoach, updateCoach, deleteCoach,
@@ -252,36 +252,91 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">All Bookings</h2>
                 {bookings.length === 0 && <p className="text-slate-400 text-sm">No bookings yet.</p>}
-                {bookings.map((b) => (
-                  <div key={b._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-slate-900 dark:text-white">{b.parent.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            b.isFreeSession ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                              : b.status === "paid" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                {bookings.map((b) => {
+                  const isPaid     = b.status === "paid" && !b.isFreeSession && (b.amountPaid ?? 0) > 0;
+                  const isRefunded = b.status === "refunded";
+                  const isFree     = b.isFreeSession;
+                  const amtDisplay = `£${((b.amountPaid ?? 0) / 100).toFixed(2)}`;
+
+                  return (
+                    <div key={b._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-1.5">
+
+                          {/* Name + status badge */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-slate-900 dark:text-white">{b.parent.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                              isFree      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : isPaid    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              : isRefunded? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                               : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                          }`}>
-                            {b.isFreeSession ? "Free" : b.status === "paid" ? `Paid £${((b.amountPaid ?? 0) / 100).toFixed(2)}` : "Pending"}
-                          </span>
+                            }`}>
+                              {isFree ? "Free Session" : isPaid ? "Paid" : isRefunded ? "Refunded" : "Pending"}
+                            </span>
+                          </div>
+
+                          {/* Payment amount — prominent */}
+                          {isPaid && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-extrabold text-green-600 dark:text-green-400">{amtDisplay}</span>
+                              <span className="text-xs text-slate-400">charged · booked {new Date(b.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                            </div>
+                          )}
+                          {isRefunded && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-extrabold text-orange-500 line-through">{amtDisplay}</span>
+                              <span className="text-xs text-slate-400">refunded</span>
+                            </div>
+                          )}
+                          {isFree && (
+                            <div className="text-sm font-semibold text-green-600 dark:text-green-400">£0.00 — complimentary first session</div>
+                          )}
+
+                          {/* Contact */}
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{b.parent.email} · {b.parent.phone}</p>
+
+                          {/* Session details */}
+                          <p className="text-sm text-slate-600 dark:text-slate-300">
+                            📍 {b.location} &nbsp;·&nbsp;
+                            📅 {new Date(b.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} &nbsp;·&nbsp;
+                            ⏰ {b.time}
+                          </p>
+                          <p className="text-sm text-slate-600 dark:text-slate-300">
+                            👧 {b.children.map((c) => `${c.name} (age ${c.age})`).join(", ")}
+                          </p>
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{b.parent.email} · {b.parent.phone}</p>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                          📍 {b.location} · 📅 {new Date(b.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} · ⏰ {b.time}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                          👧 {b.children.map((c) => `${c.name} (${c.age})`).join(", ")}
-                        </p>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2 shrink-0 items-end">
+                          {isPaid && (
+                            <button
+                              onClick={async () => {
+                                if (!token || !confirm(`Issue a full refund of ${amtDisplay} to ${b.parent.name}?`)) return;
+                                try {
+                                  await refundBooking(token, b._id);
+                                  setBookings((p) => p.map((x) => x._id === b._id ? { ...x, status: "refunded" } : x));
+                                } catch (err) {
+                                  alert(err instanceof Error ? err.message : "Refund failed");
+                                }
+                              }}
+                              className="text-xs bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              Refund {amtDisplay}
+                            </button>
+                          )}
+                          <button onClick={async () => {
+                            if (!token || !confirm("Delete this booking record?")) return;
+                            await deleteBooking(token, b._id);
+                            setBookings((p) => p.filter((x) => x._id !== b._id));
+                          }} className="text-xs text-red-400 hover:text-red-600 font-medium">
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <button onClick={async () => {
-                        if (!token || !confirm("Delete this booking?")) return;
-                        await deleteBooking(token, b._id);
-                        setBookings((p) => p.filter((x) => x._id !== b._id));
-                      }} className="text-xs text-red-400 hover:text-red-600 shrink-0">Delete</button>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -504,30 +559,42 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Image grid */}
-                {images.length === 0 ? (
-                  <p className="text-slate-400 text-sm">No images yet. Upload one above.</p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {images.map((img) => (
-                      <div key={img._id} className="relative group bg-slate-100 dark:bg-slate-700 rounded-xl overflow-hidden aspect-[4/3]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.imageUrl} alt={img.caption} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
-                          <input defaultValue={img.caption}
-                            onBlur={(e) => { if (e.target.value !== img.caption) handleUpdateCaption(img._id, e.target.value); }}
-                            className="w-full text-xs text-white bg-white/20 rounded px-2 py-1 text-center focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <button onClick={() => handleDeleteImage(img._id)}
-                            className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full">
-                            Delete
-                          </button>
+                {/* Image grid — always rendered, delete always visible */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
+                    Uploaded Images ({images.length})
+                  </h3>
+                  {images.length === 0 ? (
+                    <p className="text-slate-400 text-sm">No images yet. Upload one above.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {images.map((img) => (
+                        <div key={img._id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
+                          {/* Image */}
+                          <div className="aspect-[4/3] bg-slate-100 dark:bg-slate-700">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.imageUrl} alt={img.caption} className="w-full h-full object-cover" />
+                          </div>
+                          {/* Caption + controls — always visible below image */}
+                          <div className="p-2 space-y-2">
+                            <input
+                              defaultValue={img.caption}
+                              placeholder="Add caption…"
+                              onBlur={(e) => { if (e.target.value !== img.caption) handleUpdateCaption(img._id, e.target.value); }}
+                              className="w-full text-xs border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                            />
+                            <button
+                              onClick={() => handleDeleteImage(img._id)}
+                              className="w-full text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-semibold py-1.5 rounded-lg transition-colors"
+                            >
+                              🗑 Delete
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

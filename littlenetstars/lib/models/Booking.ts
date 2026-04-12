@@ -6,7 +6,7 @@ export interface IBooking extends Document {
   time: string;
   children: { name: string; age: number }[];
   parent: { name: string; email: string; phone: string };
-  status: "pending_payment" | "paid" | "cancelled";
+  status: "pending_payment" | "paid" | "cancelled" | "refunded";
   isFreeSession: boolean;
   stripeSessionId?: string;
   amountPaid?: number;
@@ -23,7 +23,7 @@ const bookingSchema = new Schema<IBooking>(
       email: { type: String, required: true, lowercase: true, trim: true },
       phone: { type: String, required: true },
     },
-    status: { type: String, enum: ["pending_payment", "paid", "cancelled"], default: "pending_payment" },
+    status: { type: String, enum: ["pending_payment", "paid", "cancelled", "refunded"], default: "pending_payment" },
     isFreeSession: { type: Boolean, default: false },
     stripeSessionId: String,
     amountPaid: Number,
