@@ -38,13 +38,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const raw = response.content[0].type === "text" ? response.content[0].text : "";
+
+    // Strip markdown code fences if the model wrapped the JSON
+    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
 
     let parsed: { reply: string; offerCallback: boolean };
     try {
       parsed = JSON.parse(text);
     } catch {
-      parsed = { reply: text, offerCallback: false };
+      parsed = { reply: raw, offerCallback: false };
     }
 
     return res.json(parsed);
