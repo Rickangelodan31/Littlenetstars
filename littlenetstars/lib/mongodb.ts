@@ -16,9 +16,18 @@ export default async function dbConnect() {
   if (global._mongooseCache.conn) return global._mongooseCache.conn;
 
   if (!global._mongooseCache.promise) {
-    global._mongooseCache.promise = mongoose.connect(uri);
+    global._mongooseCache.promise = mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+    });
   }
 
-  global._mongooseCache.conn = await global._mongooseCache.promise;
+  try {
+    global._mongooseCache.conn = await global._mongooseCache.promise;
+  } catch (err) {
+    // Clear cache so next request retries instead of hitting the same failed promise
+    global._mongooseCache.promise = null;
+    throw err;
+  }
+
   return global._mongooseCache.conn;
 }
