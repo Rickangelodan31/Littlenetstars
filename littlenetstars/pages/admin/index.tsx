@@ -52,6 +52,7 @@ export default function AdminDashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("bookings");
   const [ready, setReady] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Bookings
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
@@ -250,11 +251,29 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
 
         {/* Header */}
-        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-          <span className="text-lg font-extrabold text-purple-600 dark:text-purple-400">
-            LittleNet<span className="text-yellow-500">Stars</span>
-            <span className="text-slate-400 font-normal text-sm ml-2">Admin</span>
-          </span>
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center gap-3">
+            {/* Hamburger — mobile only */}
+            <button
+              onClick={() => setSidebarOpen((o) => !o)}
+              className="md:hidden p-2 rounded-md text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {sidebarOpen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+            <span className="text-lg font-extrabold text-purple-600 dark:text-purple-400">
+              LittleNet<span className="text-yellow-500">Stars</span>
+              <span className="text-slate-400 font-normal text-sm ml-2">Admin</span>
+            </span>
+          </div>
           <div className="flex items-center gap-4">
             <a href="/" target="_blank" className="text-xs text-purple-600 dark:text-purple-400 hover:underline">View site →</a>
             <button onClick={logout} className="text-sm text-slate-500 hover:text-red-500 transition-colors">Sign out</button>
@@ -277,23 +296,36 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="flex">
+        <div className="flex relative">
+          {/* Mobile backdrop */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 z-30 bg-black/40 md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
           {/* Sidebar */}
-          <aside className="w-48 shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 min-h-screen pt-6">
+          <aside className={`
+            fixed top-0 left-0 z-40 h-full w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 pt-20 flex flex-col
+            transition-transform duration-200 ease-in-out
+            md:relative md:top-auto md:left-auto md:z-auto md:w-48 md:translate-x-0 md:pt-6 md:flex
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          `}>
             {TABS.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`w-full text-left px-5 py-3 text-sm font-medium flex items-center gap-3 transition-colors ${
+              <button key={t.id} onClick={() => { setTab(t.id); setSidebarOpen(false); }}
+                className={`w-full text-left px-5 py-3.5 text-sm font-medium flex items-center gap-3 transition-colors ${
                   tab === t.id
                     ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 border-r-2 border-purple-600"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
                 }`}>
-                <span>{t.icon}</span>{t.label}
+                <span className="text-base">{t.icon}</span>{t.label}
               </button>
             ))}
           </aside>
 
           {/* Main */}
-          <main className="flex-1 p-6 max-w-4xl">
+          <main className="flex-1 p-4 md:p-6 max-w-4xl min-w-0 w-full">
 
             {/* ── BOOKINGS ── */}
             {tab === "bookings" && (
