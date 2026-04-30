@@ -12,6 +12,7 @@ interface GalleryItem {
   imageUrl: string;
   caption: string;
   order: number;
+  mediaType?: "image" | "video";
 }
 
 interface Props {
@@ -75,14 +76,25 @@ export default function Gallery({ images, title, subtitle }: Props) {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: i * 0.08 }}
-                  className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow group"
+                  className="relative rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm hover:shadow-md transition-shadow group"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.imageUrl}
-                    alt={img.caption}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  {img.mediaType === "video" ? (
+                    <div className="aspect-[16/9]">
+                      <iframe
+                        src={img.imageUrl}
+                        className="w-full h-full"
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img.imageUrl}
+                      alt={img.caption}
+                      className="w-full h-auto block"
+                    />
+                  )}
                   {img.caption && (
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                       <p className="text-white text-sm font-medium">{img.caption}</p>

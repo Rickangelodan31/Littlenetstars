@@ -52,7 +52,7 @@ export default function About({ coaches, settings }: Props) {
 
   const founderName = founder?.name || settings.about_hero_title || "Affy Morris";
   const founderTitle = founder?.title || settings.about_hero_subtitle || "Former Jamaican International · UK Netball Superleague";
-  const founderPhoto = founder?.photoUrl || "";
+  const founderPhoto = founder?.photoUrl || settings.about_hero_photo || "";
 
   const bioParagraphs = (() => {
     if (founder?.bio) return [founder.bio];
@@ -104,7 +104,7 @@ export default function About({ coaches, settings }: Props) {
                 <img
                   src={founderPhoto}
                   alt={founderName}
-                  className="w-64 h-64 md:w-72 md:h-72 rounded-3xl object-cover shadow-xl"
+                  className="w-full max-w-sm rounded-3xl shadow-xl"
                 />
               ) : (
                 <div className="w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-900/60 dark:to-yellow-900/40 flex flex-col items-center justify-center shadow-xl gap-2">

@@ -4,6 +4,7 @@ export interface IGalleryImage extends Document {
   imageUrl: string;
   caption: string;
   order: number;
+  mediaType: "image" | "video";
 }
 
 const galleryImageSchema = new Schema<IGalleryImage>(
@@ -11,6 +12,7 @@ const galleryImageSchema = new Schema<IGalleryImage>(
     imageUrl: { type: String, required: true },
     caption: { type: String, default: "" },
     order: { type: Number, default: 0 },
+    mediaType: { type: String, enum: ["image", "video"], default: "image" },
   },
   { timestamps: true }
 );

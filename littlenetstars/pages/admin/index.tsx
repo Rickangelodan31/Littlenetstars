@@ -1,6 +1,8 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import Cropper from "react-easy-crop";
+import type { Point, Area } from "react-easy-crop";
 import {
   verifyAdmin, fetchAllBookings, deleteBooking, refundBooking,
   fetchSettings, saveSettings,
@@ -21,7 +23,27 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "subscriptions", label: "Subscriptions",  icon: "⭐" },
 ];
 
-/** Compress image via canvas before encoding — keeps files small enough for MongoDB/Next.js */
+// ── Pure helpers ─────────────────────────────────────────────────────────────
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (ev) => resolve(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  });
+}
+
+function toEmbedUrl(url: string): string | null {
+  let m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  m = url.match(/vimeo\.com\/(\d+)/);
+  if (m) return `https://player.vimeo.com/video/${m[1]}`;
+  if (url.includes("youtube.com/embed/") || url.includes("player.vimeo.com/video/")) return url;
+  return null;
+}
+
+/** Compress image via canvas — keeps base64 manageable for MongoDB. */
 function fileToDataUri(file: File, maxPx = 1400): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -47,6 +69,55 @@ function fileToDataUri(file: File, maxPx = 1400): Promise<string> {
   });
 }
 
+// ── Crop/Adjust state type ───────────────────────────────────────────────────
+
+interface CropState {
+  src: string;
+  caption: string;
+  /** Where to send the result. "gallery-new" saves a new gallery item.
+   *  "gallery-replace:<id>" replaces an existing gallery item.
+   *  "coach-new" updates coachForm.photoUrl.
+   *  "coach-quick:<id>" does a quick photo update on an existing coach.
+   *  "founder" saves to settings.about_hero_photo. */
+  target:
+    | "gallery-new"
+    | `gallery-replace:${string}`
+    | "coach-new"
+    | `coach-quick:${string}`
+    | "founder";
+}
+
+// ── Apply crop + adjustments to canvas ──────────────────────────────────────
+
+async function applyCropCanvas(
+  src: string,
+  pixelCrop: Area,
+  brightness: number,
+  contrast: number,
+  maxPx = 1400,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let outW = pixelCrop.width, outH = pixelCrop.height;
+      if (outW > maxPx || outH > maxPx) {
+        if (outW >= outH) { outH = Math.round((outH * maxPx) / outW); outW = maxPx; }
+        else               { outW = Math.round((outW * maxPx) / outH); outH = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = outW; canvas.height = outH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+      ctx.drawImage(img, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, outW, outH);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -69,7 +140,20 @@ export default function AdminDashboard() {
   const [galleryMsg, setGalleryMsg] = useState("");
   const [galleryUploading, setGalleryUploading] = useState(false);
   const galleryFileRef = useRef<HTMLInputElement>(null);
-  const [galleryFileCaption, setGalleryFileCaption] = useState("");
+
+  // Video URL add
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoCaption, setVideoCaption] = useState("");
+
+  // Crop / Adjust modal
+  const [cropState, setCropState] = useState<CropState | null>(null);
+  const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [aspect, setAspect] = useState<number>(4 / 3);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [cropBrightness, setCropBrightness] = useState(100);
+  const [cropContrast, setCropContrast] = useState(100);
+  const [cropSaving, setCropSaving] = useState(false);
 
   // Coaches
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -77,11 +161,13 @@ export default function AdminDashboard() {
   const [editingCoach, setEditingCoach] = useState<string | null>(null);
   const [coachMsg, setCoachMsg] = useState("");
   const coachPhotoRef = useRef<HTMLInputElement>(null);
-  // Inline quick-photo-update per coach card
   const [quickPhotoCoachId, setQuickPhotoCoachId] = useState<string | null>(null);
   const quickPhotoRef = useRef<HTMLInputElement>(null);
 
-  // Gallery replace mode (one image at a time)
+  // Founder photo (Content tab)
+  const founderPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Gallery replace mode
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const replaceFileRef = useRef<HTMLInputElement>(null);
 
@@ -112,7 +198,70 @@ export default function AdminDashboard() {
     router.push("/admin/login");
   }
 
-  // ── Settings ─────────────────────────────────────────────────────
+  // ── Open crop modal helper ───────────────────────────────────────────────
+
+  function openCropModalWithSrc(src: string, target: CropState["target"], caption = "") {
+    setCropState({ src, caption, target });
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setCropBrightness(100);
+    setCropContrast(100);
+    setAspect(target === "gallery-new" || target.startsWith("gallery-replace") ? 4 / 3 : 1);
+  }
+
+  async function openCropModal(file: File, target: CropState["target"], caption = "") {
+    const src = await readFileAsDataUrl(file);
+    openCropModalWithSrc(src, target, caption);
+  }
+
+  // ── Crop apply ───────────────────────────────────────────────────────────
+
+  const handleCropApply = useCallback(async () => {
+    if (!cropState || !token || !croppedAreaPixels) return;
+    setCropSaving(true);
+    try {
+      const maxPx = cropState.target.startsWith("coach") || cropState.target === "founder" ? 800 : 1400;
+      const dataUri = await applyCropCanvas(
+        cropState.src, croppedAreaPixels,
+        cropBrightness, cropContrast, maxPx,
+      );
+
+      if (cropState.target === "gallery-new") {
+        const img = await addGalleryByUrl(token, dataUri, cropState.caption, images.length);
+        setImages((p) => [...p, img]);
+        if (galleryFileRef.current) galleryFileRef.current.value = "";
+        setGalleryMsg("Image uploaded.");
+      } else if (cropState.target.startsWith("gallery-replace:")) {
+        const id = cropState.target.replace("gallery-replace:", "");
+        const updated = await updateGalleryImage(token, id, { imageUrl: dataUri });
+        setImages((p) => p.map((i) => i._id === id ? updated : i));
+        setReplacingImageId(null);
+        setGalleryMsg("Image replaced.");
+      } else if (cropState.target === "coach-new") {
+        setCoachForm((f) => ({ ...f, photoUrl: dataUri }));
+        if (coachPhotoRef.current) coachPhotoRef.current.value = "";
+      } else if (cropState.target.startsWith("coach-quick:")) {
+        const id = cropState.target.replace("coach-quick:", "");
+        const updated = await updateCoach(token, id, { photoUrl: dataUri });
+        setCoaches((p) => p.map((c) => c._id === id ? updated : c));
+        setQuickPhotoCoachId(null);
+        if (quickPhotoRef.current) quickPhotoRef.current.value = "";
+        setCoachMsg("Photo updated.");
+      } else if (cropState.target === "founder") {
+        setSetting("about_hero_photo", dataUri);
+        if (founderPhotoRef.current) founderPhotoRef.current.value = "";
+      }
+
+      setCropState(null);
+    } catch {
+      setGalleryMsg("Upload failed — please try again.");
+    }
+    setCropSaving(false);
+  }, [cropState, token, croppedAreaPixels, cropBrightness, cropContrast, images.length]);
+
+  // ── Settings ─────────────────────────────────────────────────────────────
+
   async function handleSaveSettings() {
     if (!token) return;
     setSettingsSaving(true);
@@ -129,7 +278,8 @@ export default function AdminDashboard() {
     setSettings((s) => ({ ...s, [key]: value }));
   }
 
-  // ── Gallery ──────────────────────────────────────────────────────
+  // ── Gallery ──────────────────────────────────────────────────────────────
+
   async function handleAddByUrl(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
@@ -141,23 +291,24 @@ export default function AdminDashboard() {
     } catch { setGalleryMsg("Failed to add image."); }
   }
 
-  async function handleGalleryFileUpload(e: React.FormEvent) {
+  async function handleAddVideo(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !galleryFileRef.current?.files?.[0]) return;
-    setGalleryUploading(true);
+    if (!token) return;
+    const embedUrl = toEmbedUrl(videoUrl.trim());
+    if (!embedUrl) {
+      setGalleryMsg("Please enter a valid YouTube or Vimeo URL.");
+      return;
+    }
     try {
-      const dataUri = await fileToDataUri(galleryFileRef.current.files[0]);
-      const img = await addGalleryByUrl(token, dataUri, galleryFileCaption, images.length);
+      const img = await addGalleryByUrl(token, embedUrl, videoCaption, images.length, "video");
       setImages((p) => [...p, img]);
-      setGalleryFileCaption("");
-      if (galleryFileRef.current) galleryFileRef.current.value = "";
-      setGalleryMsg("Image uploaded.");
-    } catch { setGalleryMsg("Upload failed."); }
-    setGalleryUploading(false);
+      setVideoUrl(""); setVideoCaption("");
+      setGalleryMsg("Video added.");
+    } catch { setGalleryMsg("Failed to add video."); }
   }
 
   async function handleDeleteImage(id: string) {
-    if (!token || !confirm("Delete this image?")) return;
+    if (!token || !confirm("Delete this item?")) return;
     await deleteGalleryImage(token, id);
     setImages((p) => p.filter((i) => i._id !== id));
   }
@@ -168,37 +319,7 @@ export default function AdminDashboard() {
     setImages((p) => p.map((i) => i._id === id ? updated : i));
   }
 
-  async function handleReplaceImage(id: string) {
-    if (!token || !replaceFileRef.current?.files?.[0]) return;
-    try {
-      const dataUri = await fileToDataUri(replaceFileRef.current.files[0]);
-      const updated = await updateGalleryImage(token, id, { imageUrl: dataUri });
-      setImages((p) => p.map((i) => i._id === id ? updated : i));
-      setReplacingImageId(null);
-      if (replaceFileRef.current) replaceFileRef.current.value = "";
-      setGalleryMsg("Image replaced.");
-    } catch { setGalleryMsg("Replace failed."); }
-  }
-
-  // ── Coaches ──────────────────────────────────────────────────────
-  async function handleCoachPhotoUpload() {
-    if (!coachPhotoRef.current?.files?.[0]) return;
-    const dataUri = await fileToDataUri(coachPhotoRef.current.files[0], 800);
-    setCoachForm((f) => ({ ...f, photoUrl: dataUri }));
-    if (coachPhotoRef.current) coachPhotoRef.current.value = "";
-  }
-
-  async function handleQuickPhotoUpdate(coachId: string) {
-    if (!token || !quickPhotoRef.current?.files?.[0]) return;
-    try {
-      const dataUri = await fileToDataUri(quickPhotoRef.current.files[0], 800);
-      const updated = await updateCoach(token, coachId, { photoUrl: dataUri });
-      setCoaches((p) => p.map((c) => c._id === coachId ? updated : c));
-      setQuickPhotoCoachId(null);
-      if (quickPhotoRef.current) quickPhotoRef.current.value = "";
-      setCoachMsg("Photo updated.");
-    } catch { setCoachMsg("Photo update failed."); }
-  }
+  // ── Coaches ──────────────────────────────────────────────────────────────
 
   async function handleSaveCoach(e: React.FormEvent) {
     e.preventDefault();
@@ -240,7 +361,7 @@ export default function AdminDashboard() {
   const revenue = paid.reduce((sum, b) => sum + (b.amountPaid ?? 0), 0);
   const activeSubs = subscriptions.filter((s) => s.status === "active").length;
 
-  // ── Input helpers ────────────────────────────────────────────────
+  // ── Input helpers ────────────────────────────────────────────────────────
   const inputCls = "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500";
   const labelCls = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1";
   const sectionCls = "bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm space-y-4";
@@ -253,7 +374,6 @@ export default function AdminDashboard() {
         {/* Header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4 flex items-center justify-between sticky top-0 z-50">
           <div className="flex items-center gap-3">
-            {/* Hamburger — mobile only */}
             <button
               onClick={() => setSidebarOpen((o) => !o)}
               className="md:hidden p-2 rounded-md text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -297,12 +417,8 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex relative">
-          {/* Mobile backdrop */}
           {sidebarOpen && (
-            <div
-              className="fixed inset-0 z-30 bg-black/40 md:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
+            <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setSidebarOpen(false)} />
           )}
 
           {/* Sidebar */}
@@ -337,13 +453,10 @@ export default function AdminDashboard() {
                   const isRefunded = b.status === "refunded";
                   const isFree     = b.isFreeSession;
                   const amtDisplay = `£${((b.amountPaid ?? 0) / 100).toFixed(2)}`;
-
                   return (
                     <div key={b._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 space-y-1.5">
-
-                          {/* Name + status badge */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-slate-900 dark:text-white">{b.parent.name}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
@@ -355,8 +468,6 @@ export default function AdminDashboard() {
                               {isFree ? "Free Session" : isPaid ? "Paid" : isRefunded ? "Refunded" : "Pending"}
                             </span>
                           </div>
-
-                          {/* Payment amount — prominent */}
                           {isPaid && (
                             <div className="flex items-center gap-2">
                               <span className="text-2xl font-extrabold text-green-600 dark:text-green-400">{amtDisplay}</span>
@@ -372,11 +483,7 @@ export default function AdminDashboard() {
                           {isFree && (
                             <div className="text-sm font-semibold text-green-600 dark:text-green-400">£0.00 — complimentary first session</div>
                           )}
-
-                          {/* Contact */}
                           <p className="text-sm text-slate-500 dark:text-slate-400">{b.parent.email} · {b.parent.phone}</p>
-
-                          {/* Session details */}
                           <p className="text-sm text-slate-600 dark:text-slate-300">
                             📍 {b.location} &nbsp;·&nbsp;
                             📅 {new Date(b.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} &nbsp;·&nbsp;
@@ -386,8 +493,6 @@ export default function AdminDashboard() {
                             👧 {b.children.map((c) => `${c.name} (age ${c.age})`).join(", ")}
                           </p>
                         </div>
-
-                        {/* Actions */}
                         <div className="flex flex-col gap-2 shrink-0 items-end">
                           {isPaid && (
                             <button
@@ -424,7 +529,6 @@ export default function AdminDashboard() {
             {tab === "sessions" && (
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Session Settings</h2>
-
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Per-Session Booking</h3>
                   <div>
@@ -456,7 +560,6 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
-
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Monthly Subscription Prices</h3>
                   <div>
@@ -488,7 +591,6 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
-
                 <button onClick={handleSaveSettings} disabled={settingsSaving}
                   className="bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
                   {settingsSaved ? "Saved ✓" : settingsSaving ? "Saving…" : "Save Changes"}
@@ -506,11 +608,11 @@ export default function AdminDashboard() {
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Homepage</h3>
                   {[
-                    { key: "hero_title",       label: "Main Title",         placeholder: "LittleNetStars",                    rows: 1 },
-                    { key: "hero_subtitle",    label: "Tagline",             placeholder: "Building Confidence Through Netball", rows: 1 },
-                    { key: "hero_description", label: "Hero Description",    placeholder: "Fun, structured netball training…",   rows: 2 },
-                    { key: "coaches_teaser",   label: "Coaches Section Text",placeholder: "Led by Affy Morris…",                rows: 3 },
-                    { key: "cta_text",         label: "CTA Description",     placeholder: "Your child's first session is on us…",rows: 2 },
+                    { key: "hero_title",       label: "Main Title",          placeholder: "LittleNetStars",                    rows: 1 },
+                    { key: "hero_subtitle",    label: "Tagline",              placeholder: "Building Confidence Through Netball", rows: 1 },
+                    { key: "hero_description", label: "Hero Description",     placeholder: "Fun, structured netball training…",   rows: 2 },
+                    { key: "coaches_teaser",   label: "Coaches Section Text", placeholder: "Led by Affy Morris…",                rows: 3 },
+                    { key: "cta_text",         label: "CTA Description",      placeholder: "Your child's first session is on us…",rows: 2 },
                   ].map(({ key, label, placeholder, rows }) => (
                     <div key={key}>
                       <label className={labelCls}>{label}</label>
@@ -525,22 +627,72 @@ export default function AdminDashboard() {
                 {/* About Page */}
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">About Page</h3>
-                  <p className="text-xs text-slate-400">If a coach is saved in the Coaches tab with a bio, that overrides the fields below.</p>
+                  <p className="text-xs text-slate-400">If a coach is saved in the Coaches tab, that overrides the fields below.</p>
+
+                  {/* Founder Photo */}
+                  <div>
+                    <label className={labelCls}>Founder Photo (Affy)</label>
+                    <div className="flex items-center gap-4">
+                      {settings.about_hero_photo && (
+                        <button
+                          type="button"
+                          title="Click to edit photo"
+                          onClick={() => openCropModalWithSrc(settings.about_hero_photo, "founder")}
+                          className="shrink-0 relative group"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={settings.about_hero_photo}
+                            alt="Founder"
+                            className="w-20 h-20 rounded-2xl object-cover border-2 border-transparent group-hover:border-purple-500 transition-all"
+                          />
+                          <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity text-white text-xs font-semibold">
+                            Edit
+                          </span>
+                        </button>
+                      )}
+                      <div className="flex-1 space-y-2">
+                        <input
+                          ref={founderPhotoRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) await openCropModal(file, "founder");
+                          }}
+                          className="text-sm text-slate-500 dark:text-slate-400 w-full"
+                        />
+                        <p className="text-xs text-slate-400">
+                          Selecting a photo opens the crop &amp; adjust editor before saving.
+                          {settings.about_hero_photo ? " Current photo shown above." : " No photo uploaded yet."}
+                        </p>
+                        {settings.about_hero_photo && (
+                          <button
+                            onClick={() => setSetting("about_hero_photo", "")}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            Remove photo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {[
-                    { key: "about_hero_title",   label: "Founder Name",        placeholder: "Affy Morris", rows: 1 },
-                    { key: "about_hero_subtitle", label: "Founder Subtitle",    placeholder: "Former Jamaican International · UK Netball Superleague", rows: 1 },
-                    { key: "about_bio_1",         label: "Bio Paragraph 1",     placeholder: "Affy is a former Jamaican netball player…", rows: 3 },
-                    { key: "about_bio_2",         label: "Bio Paragraph 2",     placeholder: "She represented Jamaica at Under-21 level…", rows: 3 },
-                    { key: "about_bio_3",         label: "Bio Paragraph 3",     placeholder: "Affy went on to play in the UK's Netball Superleague…", rows: 3 },
-                    { key: "about_bio_4",         label: "Bio Paragraph 4",     placeholder: "With a background that spans…", rows: 3 },
-                    { key: "about_bio_5",         label: "Bio Paragraph 5",     placeholder: "She is now dedicated to coaching…", rows: 3 },
-                    { key: "about_cta",           label: "About CTA Text",      placeholder: "Book a session with Affy", rows: 1 },
-                    { key: "highlight_1_title",   label: "Highlight 1 Title",   placeholder: "Jamaica U21", rows: 1 },
-                    { key: "highlight_1_desc",    label: "Highlight 1 Text",    placeholder: "Represented Jamaica at international youth level", rows: 2 },
-                    { key: "highlight_2_title",   label: "Highlight 2 Title",   placeholder: "Superleague", rows: 1 },
-                    { key: "highlight_2_desc",    label: "Highlight 2 Text",    placeholder: "Competed in the UK Netball Superleague", rows: 2 },
-                    { key: "highlight_3_title",   label: "Highlight 3 Title",   placeholder: "Founder", rows: 1 },
-                    { key: "highlight_3_desc",    label: "Highlight 3 Text",    placeholder: "Created LittleNetStars to coach the next generation", rows: 2 },
+                    { key: "about_hero_title",    label: "Founder Name",        placeholder: "Affy Morris", rows: 1 },
+                    { key: "about_hero_subtitle",  label: "Founder Subtitle",    placeholder: "Former Jamaican International · UK Netball Superleague", rows: 1 },
+                    { key: "about_bio_1",          label: "Bio Paragraph 1",     placeholder: "Affy is a former Jamaican netball player…", rows: 3 },
+                    { key: "about_bio_2",          label: "Bio Paragraph 2",     placeholder: "She represented Jamaica at Under-21 level…", rows: 3 },
+                    { key: "about_bio_3",          label: "Bio Paragraph 3",     placeholder: "Affy went on to play in the UK's Netball Superleague…", rows: 3 },
+                    { key: "about_bio_4",          label: "Bio Paragraph 4",     placeholder: "With a background that spans…", rows: 3 },
+                    { key: "about_bio_5",          label: "Bio Paragraph 5",     placeholder: "She is now dedicated to coaching…", rows: 3 },
+                    { key: "about_cta",            label: "About CTA Text",      placeholder: "Book a session with Affy", rows: 1 },
+                    { key: "highlight_1_title",    label: "Highlight 1 Title",   placeholder: "Jamaica U21", rows: 1 },
+                    { key: "highlight_1_desc",     label: "Highlight 1 Text",    placeholder: "Represented Jamaica at international youth level", rows: 2 },
+                    { key: "highlight_2_title",    label: "Highlight 2 Title",   placeholder: "Superleague", rows: 1 },
+                    { key: "highlight_2_desc",     label: "Highlight 2 Text",    placeholder: "Competed in the UK Netball Superleague", rows: 2 },
+                    { key: "highlight_3_title",    label: "Highlight 3 Title",   placeholder: "Founder", rows: 1 },
+                    { key: "highlight_3_desc",     label: "Highlight 3 Text",    placeholder: "Created LittleNetStars to coach the next generation", rows: 2 },
                   ].map(({ key, label, placeholder, rows }) => (
                     <div key={key}>
                       <label className={labelCls}>{label}</label>
@@ -556,8 +708,8 @@ export default function AdminDashboard() {
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Gallery Page</h3>
                   {[
-                    { key: "gallery_title",    label: "Page Title",    placeholder: "Gallery", rows: 1 },
-                    { key: "gallery_subtitle", label: "Subtitle",      placeholder: "Moments from the court", rows: 1 },
+                    { key: "gallery_title",    label: "Page Title", placeholder: "Gallery", rows: 1 },
+                    { key: "gallery_subtitle", label: "Subtitle",   placeholder: "Moments from the court", rows: 1 },
                   ].map(({ key, label, placeholder, rows }) => (
                     <div key={key}>
                       <label className={labelCls}>{label}</label>
@@ -572,8 +724,8 @@ export default function AdminDashboard() {
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Subscriptions Page</h3>
                   {[
-                    { key: "subs_hero_title",    label: "Page Hero Title",   placeholder: "Weekend Subscription Plans", rows: 1 },
-                    { key: "subs_hero_subtitle", label: "Page Hero Subtitle",placeholder: "Lock in your child's weekend sessions…", rows: 2 },
+                    { key: "subs_hero_title",    label: "Page Hero Title",    placeholder: "Weekend Subscription Plans", rows: 1 },
+                    { key: "subs_hero_subtitle", label: "Page Hero Subtitle", placeholder: "Lock in your child's weekend sessions…", rows: 2 },
                   ].map(({ key, label, placeholder, rows }) => (
                     <div key={key}>
                       <label className={labelCls}>{label}</label>
@@ -596,67 +748,115 @@ export default function AdminDashboard() {
             {tab === "gallery" && (
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Gallery</h2>
-                <p className="text-xs text-slate-400">Images you add here appear on the public gallery page immediately.</p>
                 {galleryMsg && <p className="text-sm text-green-600 dark:text-green-400">{galleryMsg}</p>}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Upload file */}
-                  <div className={sectionCls}>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Upload Image File</h3>
-                    <p className="text-xs text-slate-400 mb-3">Select an image from your device. It will be stored and displayed on the website.</p>
-                    <form onSubmit={handleGalleryFileUpload} className="space-y-2">
-                      <input ref={galleryFileRef} type="file" accept="image/*" required
-                        className="text-sm text-slate-500 dark:text-slate-400 w-full" />
-                      <input type="text" placeholder="Caption (optional)" value={galleryFileCaption}
-                        onChange={(e) => setGalleryFileCaption(e.target.value)}
-                        className={inputCls}
-                      />
-                      <button type="submit" disabled={galleryUploading}
-                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold py-2 rounded-lg">
-                        {galleryUploading ? "Uploading…" : "Upload Image"}
-                      </button>
-                    </form>
+                {/* Hidden file input — triggered by the styled button below */}
+                <input
+                  ref={galleryFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    // reset immediately so the same file can be picked again
+                    e.target.value = "";
+                    await openCropModal(file, "gallery-new");
+                  }}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Upload photo — big styled button */}
+                  <div className={sectionCls + " flex flex-col items-center justify-center text-center"}>
+                    <div className="text-3xl mb-2">📷</div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Upload Photo</h3>
+                    <p className="text-xs text-slate-400 mb-4">Choose a photo from your device — the crop &amp; adjust editor opens next.</p>
+                    <button
+                      type="button"
+                      onClick={() => galleryFileRef.current?.click()}
+                      className="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
+                    >
+                      Choose Photo
+                    </button>
                   </div>
 
                   {/* Add by URL */}
                   <div className={sectionCls}>
+                    <div className="text-3xl mb-2">🔗</div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Add by URL</h3>
-                    <p className="text-xs text-slate-400 mb-3">Paste a publicly accessible image URL.</p>
+                    <p className="text-xs text-slate-400 mb-3">Paste any public image link.</p>
                     <form onSubmit={handleAddByUrl} className="space-y-2">
                       <input type="url" required placeholder="https://..." value={imgUrl}
-                        onChange={(e) => setImgUrl(e.target.value)}
-                        className={inputCls}
-                      />
+                        onChange={(e) => setImgUrl(e.target.value)} className={inputCls} />
                       <input type="text" placeholder="Caption (optional)" value={imgCaption}
-                        onChange={(e) => setImgCaption(e.target.value)}
-                        className={inputCls}
-                      />
+                        onChange={(e) => setImgCaption(e.target.value)} className={inputCls} />
                       <button type="submit"
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold py-2 rounded-lg">
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
                         Add Image
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Add video */}
+                  <div className={sectionCls}>
+                    <div className="text-3xl mb-2">🎬</div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Add Video</h3>
+                    <p className="text-xs text-slate-400 mb-3">Paste a YouTube or Vimeo link.</p>
+                    <form onSubmit={handleAddVideo} className="space-y-2">
+                      <input type="url" required placeholder="https://youtube.com/watch?v=..." value={videoUrl}
+                        onChange={(e) => setVideoUrl(e.target.value)} className={inputCls} />
+                      <input type="text" placeholder="Caption (optional)" value={videoCaption}
+                        onChange={(e) => setVideoCaption(e.target.value)} className={inputCls} />
+                      <button type="submit"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+                        Add Video
                       </button>
                     </form>
                   </div>
                 </div>
 
-                {/* Image grid — always rendered, delete always visible */}
+                {/* Media grid */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
-                    Uploaded Images ({images.length})
+                    Uploaded Media ({images.length})
                   </h3>
                   {images.length === 0 ? (
-                    <p className="text-slate-400 text-sm">No images yet. Upload one above.</p>
+                    <p className="text-slate-400 text-sm">No items yet. Upload a photo or add a video above.</p>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                       {images.map((img) => (
                         <div key={img._id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
-                          {/* Image */}
-                          <div className="aspect-[4/3] bg-slate-100 dark:bg-slate-700">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={img.imageUrl} alt={img.caption} className="w-full h-full object-cover" />
+                          {/* Media preview */}
+                          <div className="aspect-[4/3] bg-slate-100 dark:bg-slate-700 relative">
+                            {img.mediaType === "video" ? (
+                              <>
+                                <iframe
+                                  src={img.imageUrl}
+                                  className="w-full h-full"
+                                  allow="autoplay; encrypted-media"
+                                  allowFullScreen
+                                />
+                                <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full font-bold pointer-events-none">
+                                  VIDEO
+                                </div>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                title="Click to edit photo"
+                                onClick={() => openCropModalWithSrc(img.imageUrl, `gallery-replace:${img._id}` as CropState["target"])}
+                                className="w-full h-full relative group"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img.imageUrl} alt={img.caption} className="w-full h-full object-cover" />
+                                <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                                  ✂️ Edit
+                                </span>
+                              </button>
+                            )}
                           </div>
 
-                          {/* Controls — always visible */}
+                          {/* Controls */}
                           <div className="p-2 space-y-2">
                             {/* Caption */}
                             <input
@@ -666,30 +866,47 @@ export default function AdminDashboard() {
                               className="w-full text-xs border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-purple-400"
                             />
 
-                            {/* Replace image */}
-                            {replacingImageId === img._id ? (
+                            {/* Crop & Adjust (images only) */}
+                            {img.mediaType !== "video" && (
+                              <label className="flex items-center justify-center gap-1.5 w-full text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-medium py-1.5 rounded-lg transition-colors cursor-pointer">
+                                ✂️ Crop &amp; Adjust
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) await openCropModal(file, `gallery-replace:${img._id}` as CropState["target"]);
+                                  }}
+                                />
+                              </label>
+                            )}
+
+                            {/* Replace (original file-only fallback kept hidden for video) */}
+                            {img.mediaType !== "video" && replacingImageId === img._id ? (
                               <div className="space-y-1">
                                 <input ref={replaceFileRef} type="file" accept="image/*"
                                   className="text-xs text-slate-500 w-full" />
                                 <div className="flex gap-1">
                                   <button
-                                    onClick={() => handleReplaceImage(img._id)}
+                                    onClick={async () => {
+                                      if (!token || !replaceFileRef.current?.files?.[0]) return;
+                                      try {
+                                        const dataUri = await fileToDataUri(replaceFileRef.current.files[0]);
+                                        const updated = await updateGalleryImage(token, img._id, { imageUrl: dataUri });
+                                        setImages((p) => p.map((i) => i._id === img._id ? updated : i));
+                                        setReplacingImageId(null);
+                                        if (replaceFileRef.current) replaceFileRef.current.value = "";
+                                        setGalleryMsg("Image replaced.");
+                                      } catch { setGalleryMsg("Replace failed."); }
+                                    }}
                                     className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white py-1 rounded-md font-semibold"
                                   >Save</button>
-                                  <button
-                                    onClick={() => setReplacingImageId(null)}
-                                    className="text-xs px-2 py-1 text-slate-400 hover:text-slate-600 rounded-md"
-                                  >Cancel</button>
+                                  <button onClick={() => setReplacingImageId(null)}
+                                    className="text-xs px-2 py-1 text-slate-400 hover:text-slate-600 rounded-md">Cancel</button>
                                 </div>
                               </div>
-                            ) : (
-                              <button
-                                onClick={() => setReplacingImageId(img._id)}
-                                className="w-full text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-medium py-1.5 rounded-lg transition-colors"
-                              >
-                                🔄 Replace Image
-                              </button>
-                            )}
+                            ) : null}
 
                             {/* Delete */}
                             <button
@@ -712,7 +929,6 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Coaches</h2>
 
-                {/* Info banner */}
                 <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-sm text-purple-800 dark:text-purple-200">
                   <strong>How this works:</strong> Coaches you add here appear on the <strong>About page</strong>. The coach with the lowest order number is shown as the founder/hero with their full photo and bio. Add <strong>Affy Morris</strong> here to show her photo on the site — use order <strong>0</strong> to make her the primary coach.
                 </div>
@@ -750,13 +966,22 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3">
                         {coachForm.photoUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={coachForm.photoUrl} alt="preview" className="w-12 h-12 rounded-full object-cover border border-slate-200" />
+                          <img src={coachForm.photoUrl} alt="preview" className="w-14 h-14 rounded-full object-cover border-2 border-purple-300 shrink-0" />
                         )}
                         <div className="flex-1 space-y-2">
-                          <input ref={coachPhotoRef} type="file" accept="image/*"
-                            onChange={handleCoachPhotoUpload}
-                            className="text-sm text-slate-500 dark:text-slate-400 w-full"
-                          />
+                          <label className="flex items-center gap-2 cursor-pointer text-sm text-purple-600 dark:text-purple-400 font-medium hover:underline">
+                            📷 {coachForm.photoUrl ? "Change photo" : "Upload photo"} (opens editor)
+                            <input
+                              ref={coachPhotoRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) await openCropModal(file, "coach-new");
+                              }}
+                            />
+                          </label>
                           <input type="text" placeholder="Or paste a photo URL" value={coachForm.photoUrl}
                             onChange={(e) => setCoachForm((f) => ({ ...f, photoUrl: e.target.value }))}
                             className={inputCls}
@@ -764,14 +989,12 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <label className={labelCls}>Display Order <span className="font-normal text-slate-400">(0 = first / founder)</span></label>
-                        <input type="number" value={coachForm.order} min={0}
-                          onChange={(e) => setCoachForm((f) => ({ ...f, order: Number(e.target.value) }))}
-                          className={inputCls} style={{ maxWidth: 100 }}
-                        />
-                      </div>
+                    <div>
+                      <label className={labelCls}>Display Order <span className="font-normal text-slate-400">(0 = first / founder)</span></label>
+                      <input type="number" value={coachForm.order} min={0}
+                        onChange={(e) => setCoachForm((f) => ({ ...f, order: Number(e.target.value) }))}
+                        className={inputCls} style={{ maxWidth: 100 }}
+                      />
                     </div>
                     <div className="flex gap-3">
                       <button type="submit"
@@ -791,26 +1014,32 @@ export default function AdminDashboard() {
                   {coaches.map((coach) => (
                     <div key={coach._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
                       <div className="flex items-start gap-4">
-                        {/* Photo — large, clickable to update */}
                         <div className="shrink-0">
                           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-800 dark:to-yellow-900 flex items-center justify-center text-sm font-bold text-purple-600 overflow-hidden">
-                            {coach.photoUrl
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
-                              : coach.name.split(" ").map((n) => n[0]).join("").slice(0,2).toUpperCase()}
+                            {coach.photoUrl ? (
+                              <button
+                                type="button"
+                                title="Click to edit photo"
+                                onClick={() => openCropModalWithSrc(coach.photoUrl, `coach-quick:${coach._id}` as CropState["target"])}
+                                className="w-full h-full relative group"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
+                                <span className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
+                                  Edit
+                                </span>
+                              </button>
+                            ) : (
+                              coach.name.split(" ").map((n) => n[0]).join("").slice(0,2).toUpperCase()
+                            )}
                           </div>
-                          {!coach.photoUrl && (
-                            <p className="text-xs text-center text-slate-400 mt-1">No photo</p>
-                          )}
                         </div>
-
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-slate-900 dark:text-white">{coach.name}</p>
                           <p className="text-xs text-purple-600 dark:text-purple-400">{coach.title}</p>
                           <p className="text-xs text-slate-400 mt-1 line-clamp-2">{coach.bio}</p>
                           <p className="text-xs text-slate-300 dark:text-slate-600 mt-0.5">Display order: {coach.order}</p>
                         </div>
-
                         <div className="flex flex-col gap-1.5 shrink-0">
                           <button onClick={() => startEditCoach(coach)}
                             className="text-xs bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 font-semibold px-3 py-1.5 rounded-lg">
@@ -823,10 +1052,10 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Inline photo update — always visible */}
+                      {/* Photo upload / crop section — always visible */}
                       <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                          📷 {coach.photoUrl ? "Update Photo" : "Upload Photo"} for {coach.name.split(" ")[0]}
+                          📷 {coach.photoUrl ? "Change Photo" : "Upload Photo"} for {coach.name.split(" ")[0]}
                         </p>
                         {quickPhotoCoachId === coach._id ? (
                           <div className="space-y-2">
@@ -835,21 +1064,17 @@ export default function AdminDashboard() {
                               type="file"
                               accept="image/*"
                               className="text-sm text-slate-500 dark:text-slate-400 w-full"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) await openCropModal(file, `coach-quick:${coach._id}` as CropState["target"]);
+                              }}
                             />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleQuickPhotoUpdate(coach._id)}
-                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold py-2 rounded-lg"
-                              >
-                                Save Photo
-                              </button>
-                              <button
-                                onClick={() => setQuickPhotoCoachId(null)}
-                                className="text-xs text-slate-400 hover:text-slate-600 px-3"
-                              >
-                                Cancel
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => setQuickPhotoCoachId(null)}
+                              className="text-xs text-slate-400 hover:text-slate-600"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         ) : (
                           <button
@@ -871,7 +1096,6 @@ export default function AdminDashboard() {
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Subscriptions</h2>
                 <p className="text-xs text-slate-400">Monthly subscribers. Manage billing via Stripe dashboard.</p>
-
                 <div className="flex gap-4 text-sm">
                   {["active","cancelled","past_due","pending"].map((s) => {
                     const count = subscriptions.filter((x) => x.status === s).length;
@@ -883,7 +1107,6 @@ export default function AdminDashboard() {
                     );
                   })}
                 </div>
-
                 {subscriptions.length === 0 && <p className="text-slate-400 text-sm">No subscriptions yet.</p>}
                 {subscriptions.map((sub) => (
                   <div key={sub._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
@@ -922,6 +1145,137 @@ export default function AdminDashboard() {
           </main>
         </div>
       </div>
+
+      {/* ── CROP & ADJUST MODAL ─────────────────────────────────────────────── */}
+      {cropState && (
+        <div className="fixed inset-0 z-[60] bg-black/85 flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg my-4 overflow-hidden flex flex-col">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <h3 className="font-bold text-slate-900 dark:text-white">Edit Photo</h3>
+              <button onClick={() => { setCropState(null); if (galleryFileRef.current) galleryFileRef.current.value = ""; }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                aria-label="Close">×</button>
+            </div>
+
+            {/* Aspect ratio picker */}
+            <div className="flex items-center gap-2 px-5 pt-3 shrink-0">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Shape:</span>
+              {[
+                { label: "4:3",    value: 4 / 3 },
+                { label: "1:1",    value: 1 },
+                { label: "16:9",   value: 16 / 9 },
+                { label: "3:4",    value: 3 / 4 },
+              ].map((opt) => (
+                <button key={opt.label}
+                  onClick={() => setAspect(opt.value)}
+                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-colors ${
+                    Math.abs(aspect - opt.value) < 0.01
+                      ? "bg-purple-600 text-white border-purple-600"
+                      : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-purple-400"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Interactive crop area */}
+            <div className="px-5 pt-3 shrink-0">
+              <p className="text-xs text-slate-400 mb-2">Drag to reposition · Pinch or scroll to zoom</p>
+              <div className="relative w-full rounded-xl overflow-hidden bg-slate-900" style={{ height: 300 }}>
+                <Cropper
+                  image={cropState.src}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={aspect}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_: Area, pixels: Area) => setCroppedAreaPixels(pixels)}
+                  style={{
+                    containerStyle: { borderRadius: 12 },
+                    mediaStyle: {
+                      filter: `brightness(${cropBrightness}%) contrast(${cropContrast}%)`,
+                    },
+                  }}
+                  showGrid
+                  zoomWithScroll
+                />
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="px-5 py-4 space-y-3 shrink-0">
+              {/* Zoom */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Zoom</span>
+                <input type="range" min={1} max={3} step={0.01} value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-purple-600" />
+                <span className="text-xs text-slate-400 w-10 text-right shrink-0">{zoom.toFixed(1)}×</span>
+              </div>
+
+              {/* Brightness */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Brightness</span>
+                <input type="range" min={50} max={200} value={cropBrightness}
+                  onChange={(e) => setCropBrightness(Number(e.target.value))}
+                  className="flex-1 accent-yellow-500" />
+                <span className="text-xs text-slate-400 w-10 text-right shrink-0">{cropBrightness}%</span>
+              </div>
+
+              {/* Contrast */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Contrast</span>
+                <input type="range" min={50} max={200} value={cropContrast}
+                  onChange={(e) => setCropContrast(Number(e.target.value))}
+                  className="flex-1 accent-blue-500" />
+                <span className="text-xs text-slate-400 w-10 text-right shrink-0">{cropContrast}%</span>
+              </div>
+
+              {/* Reset */}
+              <button
+                onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); setCropBrightness(100); setCropContrast(100); }}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
+              >
+                Reset
+              </button>
+
+              {/* Caption (gallery-new only) */}
+              {cropState.target === "gallery-new" && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Caption</p>
+                  <input
+                    type="text"
+                    placeholder="Optional caption…"
+                    value={cropState.caption}
+                    onChange={(e) => setCropState((s) => s ? { ...s, caption: e.target.value } : s)}
+                    className={inputCls}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-5 pb-5 shrink-0">
+              <button
+                onClick={handleCropApply}
+                disabled={cropSaving || !croppedAreaPixels}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
+              >
+                {cropSaving ? "Saving…" : "Save Photo"}
+              </button>
+              <button
+                onClick={() => { setCropState(null); if (galleryFileRef.current) galleryFileRef.current.value = ""; }}
+                className="px-5 py-2.5 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

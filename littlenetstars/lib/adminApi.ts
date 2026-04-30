@@ -26,6 +26,7 @@ export interface GalleryImage {
   imageUrl: string;
   caption: string;
   order: number;
+  mediaType: "image" | "video";
 }
 
 export async function fetchGallery(token: string): Promise<GalleryImage[]> {
@@ -34,11 +35,17 @@ export async function fetchGallery(token: string): Promise<GalleryImage[]> {
   return res.json();
 }
 
-export async function addGalleryByUrl(token: string, imageUrl: string, caption: string, order: number): Promise<GalleryImage> {
+export async function addGalleryByUrl(
+  token: string,
+  imageUrl: string,
+  caption: string,
+  order: number,
+  mediaType: "image" | "video" = "image",
+): Promise<GalleryImage> {
   const res = await fetch(`${API}/api/admin/gallery`, {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ imageUrl, caption, order }),
+    body: JSON.stringify({ imageUrl, caption, order, mediaType }),
   });
   if (!res.ok) throw new Error("Failed to add image");
   return res.json();
