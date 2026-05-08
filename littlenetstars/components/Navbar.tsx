@@ -4,11 +4,12 @@ import ThemeToggle from "./ThemeToggle";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
   { href: "/camp", label: "Camp" },
   { href: "/schools", label: "Schools & Nurseries" },
+  { href: "/kit", label: "Kit" },
   { href: "/gallery", label: "Gallery" },
   { href: "/subscriptions", label: "Monthly Plans" },
+  { href: "/about", label: "About" },
   { href: "/join-the-team", label: "Join the Team" },
   { href: "/contact", label: "Contact" },
   { href: "/booking", label: "Book Now" },
@@ -29,7 +30,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-3">
             {links.map((l) => (
               <Link
                 key={l.href}
