@@ -30,19 +30,25 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
       Setting.find({}).lean(),
     ]);
     const settings: Record<string, string> = {};
-    (settingDocs as { key: string; value: string }[]).forEach((s) => { settings[s.key] = s.value; });
-    return { props: { coaches: JSON.parse(JSON.stringify(coachDocs)), settings } };
+    (settingDocs as { key: string; value: string }[]).forEach((s) => {
+      settings[s.key] = s.value;
+    });
+    return {
+      props: { coaches: JSON.parse(JSON.stringify(coachDocs)), settings },
+    };
   } catch {
     return { props: { coaches: [], settings: {} } };
   }
 };
 
 const DEFAULT_BIO = [
-  "Affy is a former Jamaican netball player who has competed at both national youth and professional levels in Jamaica and the United Kingdom.",
-  "She represented Jamaica at Under-21 level, demonstrating her talent on the international stage before continuing her development in England.",
-  "Affy went on to play in the UK\u2019s Netball Superleague, gaining valuable experience in a high-performance environment.",
+  "Affy Morris",
+  "Former Jamaican International & UK Netball Superleague Player (Leeds Rhinos & Lightning).",
+  "Affy is a former Jamaican netball player who has competed at both national youth and professional levels in across the Caribbean, New Zealand and the United Kingdom.",
+  "She represented Jamaica at Under-21 level, demonstrating her talent on the international stage before continuing her development in England, where she received two full sports scholarships to complete her bachelor’s and masters degree. ",
+  "Affy went on to play in the UK’s Netball Superleague Player, gaining valuable experience in a high-performance environment.",
   "With a background that spans both the Caribbean and UK netball systems, Affy brings a unique blend of skill, discipline, and game intelligence.",
-  "She is now dedicated to coaching and mentoring young players, helping them build confidence, develop strong fundamentals, and reach their full potential in netball.",
+  "She is now a corporate working mom who is passionate about kids getting into sports and is dedicated to coaching and mentoring kids, helping them build confidence, develop strong fundamentals, and reach their full potential in netball, whilst having fun.",
 ];
 
 export default function About({ coaches, settings }: Props) {
@@ -50,16 +56,23 @@ export default function About({ coaches, settings }: Props) {
   const founder = coaches[0];
   const additionalCoaches = coaches.slice(1);
 
-  const founderName = founder?.name || settings.about_hero_title || "Affy Morris";
-  const founderTitle = founder?.title || settings.about_hero_subtitle || "Former Jamaican International · UK Netball Superleague";
-  const founderPhoto = founder?.photoUrl || settings.about_hero_photo || "";
+  const founderName =
+    founder?.name || settings.about_hero_title || "Affy Morris";
+  const founderTitle =
+    founder?.title ||
+    settings.about_hero_subtitle ||
+    "Former Jamaican National player & UK Netball Superleague player ";
+  const founderPhoto = founder?.photoUrl || settings.about_hero_photo || "/Affy.jpg";
 
   const bioParagraphs = (() => {
     if (founder?.bio) return [founder.bio];
-    return DEFAULT_BIO.map((defaultText, i) => settings[`about_bio_${i + 1}`] || defaultText);
+    return DEFAULT_BIO.map(
+      (defaultText, i) => settings[`about_bio_${i + 1}`] || defaultText,
+    );
   })();
 
-  const cta = settings.about_cta || "Book a session with " + founderName.split(" ")[0];
+  const cta =
+    settings.about_cta || "Book a session with " + founderName.split(" ")[0];
 
   return (
     <>
@@ -109,9 +122,16 @@ export default function About({ coaches, settings }: Props) {
               ) : (
                 <div className="w-64 h-64 md:w-72 md:h-72 rounded-3xl bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-900/60 dark:to-yellow-900/40 flex flex-col items-center justify-center shadow-xl gap-2">
                   <span className="text-6xl font-extrabold text-purple-600 dark:text-purple-300">
-                    {founderName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    {founderName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
                   </span>
-                  <span className="text-xs text-purple-500 dark:text-purple-400 font-medium">Photo coming soon</span>
+                  <span className="text-xs text-purple-500 dark:text-purple-400 font-medium">
+                    Photo coming soon
+                  </span>
                 </div>
               )}
             </motion.div>
@@ -129,7 +149,12 @@ export default function About({ coaches, settings }: Props) {
               className="space-y-6"
             >
               {bioParagraphs.map((para, i) => (
-                <p key={i} className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed">{para}</p>
+                <p
+                  key={i}
+                  className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed"
+                >
+                  {para}
+                </p>
               ))}
             </motion.div>
           </div>
@@ -149,9 +174,27 @@ export default function About({ coaches, settings }: Props) {
             </motion.h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {[
-                { icon: "🇯🇲", title: settings.highlight_1_title || "Jamaica U21", desc: settings.highlight_1_desc || "Represented Jamaica at international youth level" },
-                { icon: "🏆", title: settings.highlight_2_title || "Superleague",   desc: settings.highlight_2_desc || "Competed in the UK Netball Superleague" },
-                { icon: "🌍", title: settings.highlight_3_title || "Founder",       desc: settings.highlight_3_desc || "Created LittleNetStars to coach the next generation" },
+                {
+                  icon: "🇯🇲",
+                  title: settings.highlight_1_title || "Jamaica U21",
+                  desc:
+                    settings.highlight_1_desc ||
+                    "Represented Jamaica at international youth level",
+                },
+                {
+                  icon: "🏆",
+                  title: settings.highlight_2_title || "Superleague",
+                  desc:
+                    settings.highlight_2_desc ||
+                    "Competed in the UK Netball Superleague",
+                },
+                {
+                  icon: "🌍",
+                  title: settings.highlight_3_title || "Founder",
+                  desc:
+                    settings.highlight_3_desc ||
+                    "Created LittleNetStars to coach the next generation",
+                },
               ].map((item) => (
                 <motion.div
                   key={item.title}
@@ -162,8 +205,12 @@ export default function About({ coaches, settings }: Props) {
                   className="bg-white dark:bg-slate-900 rounded-2xl p-6 text-center shadow-sm"
                 >
                   <div className="text-4xl mb-3">{item.icon}</div>
-                  <h3 className="font-bold text-slate-900 dark:text-white">{item.title}</h3>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.desc}</p>
+                  <h3 className="font-bold text-slate-900 dark:text-white">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    {item.desc}
+                  </p>
                 </motion.div>
               ))}
             </div>
@@ -193,15 +240,34 @@ export default function About({ coaches, settings }: Props) {
                   >
                     {coach.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={coach.photoUrl} alt={coach.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-4" />
+                      <img
+                        src={coach.photoUrl}
+                        alt={coach.name}
+                        className="w-20 h-20 rounded-full object-cover mx-auto mb-4"
+                      />
                     ) : (
                       <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-200 to-yellow-200 dark:from-purple-900/60 dark:to-yellow-900/40 flex items-center justify-center mx-auto mb-4 text-xl font-bold text-purple-600">
-                        {coach.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        {coach.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
                       </div>
                     )}
-                    <h3 className="font-bold text-slate-900 dark:text-white">{coach.name}</h3>
-                    {coach.title && <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">{coach.title}</p>}
-                    {coach.bio && <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-3">{coach.bio}</p>}
+                    <h3 className="font-bold text-slate-900 dark:text-white">
+                      {coach.name}
+                    </h3>
+                    {coach.title && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                        {coach.title}
+                      </p>
+                    )}
+                    {coach.bio && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-3">
+                        {coach.bio}
+                      </p>
+                    )}
                   </motion.div>
                 ))}
               </div>
@@ -222,9 +288,12 @@ export default function About({ coaches, settings }: Props) {
                 <div className="inline-block bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-widest">
                   Growing Team
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">More coaches joining soon</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  More coaches joining soon
+                </h2>
                 <p className="mt-3 text-slate-500 dark:text-slate-400">
-                  LittleNetStars is expanding. New coaches will be announced here shortly.
+                  LittleNetStars is expanding. New coaches will be announced
+                  here shortly.
                 </p>
               </motion.div>
             </div>
@@ -242,7 +311,8 @@ export default function About({ coaches, settings }: Props) {
           >
             <h2 className="text-3xl font-bold text-white">{cta}</h2>
             <p className="mt-4 text-purple-200">
-              Give your child the chance to train with a former international player.
+              Give your child the chance to train with a former international
+              player.
             </p>
             <Link
               href="/booking"

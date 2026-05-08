@@ -242,9 +242,12 @@ export default function Home({ settings }: Props) {
               transition={{ duration: 0.6 }}
               className="flex justify-center"
             >
-              <div className="w-64 h-64 rounded-3xl bg-gradient-to-br from-purple-100 to-yellow-100 dark:from-purple-900/40 dark:to-yellow-900/30 flex items-center justify-center shadow-lg">
-                <span className="text-8xl">⭐</span>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/Affy.jpg"
+                alt="Affy Morris – Founder & Head Coach"
+                className="w-full max-w-sm rounded-3xl shadow-xl object-cover"
+              />
             </motion.div>
           </div>
         </section>

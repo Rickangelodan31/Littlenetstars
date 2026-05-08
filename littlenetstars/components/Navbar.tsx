@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 
@@ -21,12 +22,10 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-700">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-24">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-purple-600 dark:text-purple-400 tracking-tight">
-              LittleNet<span className="text-yellow-500">Stars</span>
-            </span>
+          <Link href="/" className="flex items-center">
+            <Image src="/Logo.png" alt="LittleNetStars" width={200} height={80} className="h-22 w-auto object-contain" priority />
           </Link>
 
           {/* Desktop links */}
