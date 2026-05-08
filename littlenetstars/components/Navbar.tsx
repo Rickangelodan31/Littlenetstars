@@ -5,8 +5,12 @@ import ThemeToggle from "./ThemeToggle";
 const links = [
   { href: "/", label: "Home" },
   { href: "/about", label: "About" },
+  { href: "/camp", label: "Camp" },
+  { href: "/schools", label: "Schools & Nurseries" },
   { href: "/gallery", label: "Gallery" },
   { href: "/subscriptions", label: "Monthly Plans" },
+  { href: "/join-the-team", label: "Join the Team" },
+  { href: "/contact", label: "Contact" },
   { href: "/booking", label: "Book Now" },
 ];
 
