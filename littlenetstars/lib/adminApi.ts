@@ -159,6 +159,89 @@ export async function fetchSubscriptions(token: string): Promise<SubscriptionRec
   return res.json();
 }
 
+// ── Kit ────────────────────────────────────────────────────────────
+export interface KitItem {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  photoUrl: string;
+  available: boolean;
+  order: number;
+}
+
+export async function fetchKitItems(token: string): Promise<KitItem[]> {
+  const res = await fetch(`${API}/api/admin/kit`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("Failed to fetch kit items");
+  return res.json();
+}
+
+export async function addKitItem(token: string, data: Omit<KitItem, "_id">): Promise<KitItem> {
+  const res = await fetch(`${API}/api/admin/kit`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to add kit item");
+  return res.json();
+}
+
+export async function updateKitItem(token: string, id: string, data: Partial<KitItem>): Promise<KitItem> {
+  const res = await fetch(`${API}/api/admin/kit/${id}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Update failed");
+  return res.json();
+}
+
+export async function deleteKitItem(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API}/api/admin/kit/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Delete failed");
+}
+
+// ── Kit Orders ────────────────────────────────────────────────────
+export interface KitOrderRecord {
+  _id: string;
+  itemId: string;
+  itemName: string;
+  itemPhoto: string;
+  size: string;
+  quantity: number;
+  customer: { name: string; email: string; phone: string };
+  notes: string;
+  status: "pending" | "ready" | "collected";
+  createdAt: string;
+}
+
+export async function fetchKitOrders(token: string): Promise<KitOrderRecord[]> {
+  const res = await fetch(`${API}/api/admin/kit-orders`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error("Failed to fetch kit orders");
+  return res.json();
+}
+
+export async function updateKitOrder(token: string, id: string, data: Partial<KitOrderRecord>): Promise<KitOrderRecord> {
+  const res = await fetch(`${API}/api/admin/kit-orders/${id}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Update failed");
+  return res.json();
+}
+
+export async function deleteKitOrder(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API}/api/admin/kit-orders/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Delete failed");
+}
+
 // ── Bookings ───────────────────────────────────────────────────────
 export interface BookingRecord {
   _id: string;

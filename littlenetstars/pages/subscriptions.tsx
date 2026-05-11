@@ -16,24 +16,33 @@ interface Props {
 export const getServerSideProps: GetServerSideProps<Props> = async () => {
   try {
     await dbConnect();
-    const settingDocs = await Setting.find({}).lean() as { key: string; value: string }[];
+    const settingDocs = (await Setting.find({}).lean()) as {
+      key: string;
+      value: string;
+    }[];
     const s: Record<string, string> = {};
-    settingDocs.forEach((d) => { s[d.key] = d.value; });
+    settingDocs.forEach((d) => {
+      s[d.key] = d.value;
+    });
     return {
       props: {
-        saturdayPrice: Number(s.plan_saturday_price || 10000),
-        bothPrice: Number(s.plan_both_price || 16000),
+        saturdayPrice: Number(s.plan_saturday_price || 4000),
+        bothPrice: Number(s.plan_both_price || 8000),
         settings: s,
       },
     };
   } catch {
-    return { props: { saturdayPrice: 10000, bothPrice: 16000, settings: {} } };
+    return { props: { saturdayPrice: 4000, bothPrice: 8000, settings: {} } };
   }
 };
 
 type PlanId = "saturdays" | "both";
 
-export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Props) {
+export default function Subscriptions({
+  saturdayPrice,
+  bothPrice,
+  settings,
+}: Props) {
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -84,7 +93,9 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
     setSelectedPlan(id);
     setError("");
     setTimeout(() => {
-      document.getElementById("checkout-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document
+        .getElementById("checkout-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 100);
   }
 
@@ -103,7 +114,11 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
       if (!res.ok) throw new Error(data.error || "Something went wrong");
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again.",
+      );
       setLoading(false);
     }
   }
@@ -114,7 +129,10 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
     <>
       <Head>
         <title>Monthly Subscription Plans – LittleNetStars</title>
-        <meta name="description" content="Subscribe to all Saturday or Weekend netball sessions at a discounted monthly rate." />
+        <meta
+          name="description"
+          content="Subscribe to all Saturday or Weekend netball sessions at a discounted monthly rate."
+        />
       </Head>
 
       <Navbar />
@@ -135,7 +153,8 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
               {settings.subs_hero_title || "Weekend Subscription Plans"}
             </h1>
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-xl mx-auto">
-              {settings.subs_hero_subtitle || "Lock in your child\u2019s weekend sessions for the month and save \u2014 no need to book individually each week."}
+              {settings.subs_hero_subtitle ||
+                "Lock in your child\u2019s weekend sessions for the month and save \u2014 no need to book individually each week."}
             </p>
           </motion.div>
         </section>
@@ -162,20 +181,35 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
                 )}
 
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{plan.title}</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{plan.days}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{plan.sessionsDesc}</p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {plan.title}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {plan.days}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    {plan.sessionsDesc}
+                  </p>
                 </div>
 
                 <div className="mb-6">
-                  <span className="text-5xl font-extrabold text-slate-900 dark:text-white">{plan.price}</span>
-                  <span className="text-slate-500 dark:text-slate-400 text-lg">/month</span>
+                  <span className="text-5xl font-extrabold text-slate-900 dark:text-white">
+                    {plan.price}
+                  </span>
+                  <span className="text-slate-500 dark:text-slate-400 text-lg">
+                    /month
+                  </span>
                 </div>
 
                 <ul className="space-y-2.5 mb-8 flex-1">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
-                      <span className="text-green-500 font-bold mt-0.5 flex-shrink-0">✓</span>
+                    <li
+                      key={f}
+                      className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300"
+                    >
+                      <span className="text-green-500 font-bold mt-0.5 flex-shrink-0">
+                        ✓
+                      </span>
                       {f}
                     </li>
                   ))}
@@ -187,8 +221,8 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
                     selectedPlan === plan.id
                       ? "bg-green-500 text-white"
                       : plan.badge
-                      ? "bg-yellow-400 hover:bg-yellow-500 text-slate-900"
-                      : "bg-purple-600 hover:bg-purple-700 text-white"
+                        ? "bg-yellow-400 hover:bg-yellow-500 text-slate-900"
+                        : "bg-purple-600 hover:bg-purple-700 text-white"
                   }`}
                 >
                   {selectedPlan === plan.id ? "Selected ✓" : plan.cta}
@@ -200,14 +234,19 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
 
         {/* Checkout form */}
         {selectedPlan && (
-          <section className="py-12 px-4 bg-slate-50 dark:bg-slate-800" id="checkout-form">
+          <section
+            className="py-12 px-4 bg-slate-50 dark:bg-slate-800"
+            id="checkout-form"
+          >
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
               className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-8"
             >
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Almost there!</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
+                Almost there!
+              </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
                 You selected{" "}
                 <span className="font-semibold text-purple-600 dark:text-purple-400">
@@ -217,29 +256,44 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Your name</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Your name
+                  </label>
                   <input
-                    type="text" required value={name}
+                    type="text"
+                    required
+                    value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Full name"
                     className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email address</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Email address
+                  </label>
                   <input
-                    type="email" required value={email}
+                    type="email"
+                    required
+                    value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
-                {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                {error && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {error}
+                  </p>
+                )}
                 <button
-                  type="submit" disabled={loading}
+                  type="submit"
+                  disabled={loading}
                   className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold py-3 rounded-full transition-colors"
                 >
-                  {loading ? "Redirecting to payment…" : `Proceed to Payment — ${selectedPlanData?.price}/month`}
+                  {loading
+                    ? "Redirecting to payment…"
+                    : `Proceed to Payment — ${selectedPlanData?.price}/month`}
                 </button>
                 <p className="text-xs text-center text-slate-400 dark:text-slate-500">
                   Secure payment via Stripe. Cancel anytime from your account.
@@ -257,15 +311,37 @@ export default function Subscriptions({ saturdayPrice, bothPrice, settings }: Pr
             </h2>
             <div className="space-y-5">
               {[
-                { q: "When do the sessions run?", a: "Sessions run every Saturday (and Sunday for the Weekend plan) throughout the month. Each session is 45 minutes long." },
-                { q: "How many sessions are included?", a: "It depends on the number of Saturdays/Sundays in the month — typically 4 each, so up to 8 sessions on the Weekend plan." },
-                { q: "Can I cancel my subscription?", a: "Yes — you can cancel anytime through Stripe\u2019s customer portal. Your access continues until the end of the billing period." },
-                { q: "What if I miss a session?", a: "Missed sessions are not rolled over, but you are welcome to attend any available slot in the same week subject to availability." },
-                { q: "Are individual bookings still available?", a: "Yes — you can always book individual sessions from the Book Now page at the standard per-session rate." },
+                {
+                  q: "When do the sessions run?",
+                  a: "Sessions run every Saturday (and Sunday for the Weekend plan) throughout the month. Each session is 45 minutes long.",
+                },
+                {
+                  q: "How many sessions are included?",
+                  a: "It depends on the number of Saturdays/Sundays in the month — typically 4 each, so up to 8 sessions on the Weekend plan.",
+                },
+                {
+                  q: "Can I cancel my subscription?",
+                  a: "Yes — you can cancel anytime through Stripe\u2019s customer portal. Your access continues until the end of the billing period.",
+                },
+                {
+                  q: "What if I miss a session?",
+                  a: "Missed sessions are not rolled over, but you are welcome to attend any available slot in the same week subject to availability.",
+                },
+                {
+                  q: "Are individual bookings still available?",
+                  a: "Yes — you can always book individual sessions from the Book Now page at the standard per-session rate.",
+                },
               ].map((item) => (
-                <div key={item.q} className="border border-slate-200 dark:border-slate-700 rounded-xl p-5">
-                  <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{item.q}</h3>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.a}</p>
+                <div
+                  key={item.q}
+                  className="border border-slate-200 dark:border-slate-700 rounded-xl p-5"
+                >
+                  <h3 className="font-semibold text-slate-900 dark:text-white text-sm">
+                    {item.q}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    {item.a}
+                  </p>
                 </div>
               ))}
             </div>

@@ -11,7 +11,7 @@ export default function Schools() {
         <title>Schools & Nurseries – LittleNetStars</title>
         <meta
           name="description"
-          content="Little Netters offers engaging football sessions for schools and nurseries for children aged 2–11. Sessions adapted to your setting's requirements."
+          content="Littlenetstars offers engaging football sessions for schools and nurseries for children aged 2–11. Sessions adapted to your setting's requirements."
         />
       </Head>
 
@@ -33,13 +33,19 @@ export default function Schools() {
                 Schools &amp; Nurseries
               </h1>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                Providing you have a suitable space, Little Netters can offer sessions in schools and nurseries.
+                Providing you have a suitable space, Little Netters can offer
+                sessions in schools and nurseries.
               </p>
               <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                All of our session plans can be adapted to suit your school&apos;s or nursery&apos;s requirements and needs. Our experienced coaches ensure sessions are delivered in a way that is engaging, motivating, educational, and fun for all children.
+                All of our session plans can be adapted to suit your
+                school&apos;s or nursery&apos;s requirements and needs. Our
+                experienced coaches ensure sessions are delivered in a way that
+                is engaging, motivating, educational, and fun for all children.
               </p>
               <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                We aim to help children stay active, build confidence, develop coordination, and enjoy learning through football-based activities.
+                We aim to help children stay active, build confidence, develop
+                coordination, and enjoy learning through football-based
+                activities.
               </p>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -74,8 +80,16 @@ export default function Schools() {
               {[
                 { icon: "👶", title: "Age Group", desc: "2–11 years old" },
                 { icon: "⏱️", title: "Session Time", desc: "1 hour" },
-                { icon: "📋", title: "Tailored Plans", desc: "Adapted to your setting's needs" },
-                { icon: "🏫", title: "Flexible Delivery", desc: "Schools and nurseries welcome" },
+                {
+                  icon: "📋",
+                  title: "Tailored Plans",
+                  desc: "Adapted to your setting's needs",
+                },
+                {
+                  icon: "🏫",
+                  title: "Flexible Delivery",
+                  desc: "Schools and nurseries welcome",
+                },
               ].map((item) => (
                 <motion.div
                   key={item.title}
@@ -87,8 +101,12 @@ export default function Schools() {
                 >
                   <div className="text-3xl">{item.icon}</div>
                   <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white">{item.title}</h3>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{item.desc}</p>
+                    <h3 className="font-bold text-slate-900 dark:text-white">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {item.desc}
+                    </p>
                   </div>
                 </motion.div>
               ))}
@@ -105,9 +123,12 @@ export default function Schools() {
             transition={{ duration: 0.5 }}
             className="max-w-2xl mx-auto text-center"
           >
-            <h2 className="text-3xl font-bold text-white">Interested in Little Netters for your school?</h2>
+            <h2 className="text-3xl font-bold text-white">
+              Interested in Little Netters for your school?
+            </h2>
             <p className="mt-4 text-purple-200">
-              Get in touch and we&apos;ll tailor a programme to suit your setting.
+              Get in touch and we&apos;ll tailor a programme to suit your
+              setting.
             </p>
             <Link
               href="/contact"

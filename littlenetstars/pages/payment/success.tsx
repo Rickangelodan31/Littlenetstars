@@ -11,7 +11,9 @@ export default function PaymentSuccess() {
   const router = useRouter();
   const { session_id, type, plan } = router.query;
 
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    "loading",
+  );
   const [booking, setBooking] = useState<BookingData | null>(null);
   const [isFreeSession, setIsFreeSession] = useState(false);
   const isSubscription = type === "subscription";
@@ -50,7 +52,9 @@ export default function PaymentSuccess() {
       <main className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center px-4 py-20">
         <div className="max-w-lg w-full">
           {status === "loading" && (
-            <div className="text-center text-slate-500 dark:text-slate-400">Confirming your booking...</div>
+            <div className="text-center text-slate-500 dark:text-slate-400">
+              Confirming your booking...
+            </div>
           )}
 
           {status === "error" && (
@@ -60,9 +64,12 @@ export default function PaymentSuccess() {
               className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-8 text-center"
             >
               <div className="text-5xl mb-4">⚠️</div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Something went wrong</h1>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Something went wrong
+              </h1>
               <p className="mt-3 text-slate-500 dark:text-slate-400">
-                We couldn&apos;t confirm your booking. If you were charged, please contact us.
+                We couldn&apos;t confirm your booking. If you were charged,
+                please contact us.
               </p>
               <Link
                 href="/booking"
@@ -93,14 +100,17 @@ export default function PaymentSuccess() {
                 Subscription Confirmed!
               </h1>
               <div className="mt-2 inline-flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1.5 rounded-full">
-                {plan === "both" ? "Weekend Sessions" : "Saturday Sessions"} — Active
+                {plan === "both" ? "Weekend Sessions" : "Saturday Sessions"} —
+                Active
               </div>
               <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">
                 Your subscription is now active. You&apos;re all set for every{" "}
-                {plan === "both" ? "Saturday and Sunday" : "Saturday"} this month.
+                {plan === "both" ? "Saturday and Sunday" : "Saturday"} this
+                month.
               </p>
               <p className="mt-2 text-slate-400 dark:text-slate-500 text-xs">
-                A confirmation has been sent to your email. You can manage your subscription via the Stripe customer portal.
+                A confirmation has been sent to your email. You can manage your
+                subscription via the Stripe customer portal.
               </p>
               <Link
                 href="/"
@@ -136,17 +146,24 @@ export default function PaymentSuccess() {
                   </div>
                 )}
                 <p className="mt-2 text-slate-500 dark:text-slate-400">
-                  A confirmation has been sent to <strong>{booking.parent.email}</strong>
+                  A confirmation has been sent to{" "}
+                  <strong>{booking.parent.email}</strong>
                 </p>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4 space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Location</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{booking.location}</span>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Location
+                  </span>
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {booking.location}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Date</span>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Date
+                  </span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {new Date(booking.date).toLocaleDateString("en-GB", {
                       weekday: "long",
@@ -157,8 +174,12 @@ export default function PaymentSuccess() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Time</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{booking.time}</span>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Time
+                  </span>
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {booking.time}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">
@@ -172,7 +193,8 @@ export default function PaymentSuccess() {
 
               {isFreeSession ? (
                 <div className="mt-4 text-xs text-center text-slate-400 dark:text-slate-500">
-                  Today was FREE. You&apos;ll be charged £30/month after 30 days. Cancel anytime via the link in your confirmation email.
+                  Today was FREE. You&apos;ll be charged £40/month after 30
+                  days. Cancel anytime via the link in your confirmation email.
                 </div>
               ) : (
                 <div className="mt-4 text-xs text-center text-slate-400 dark:text-slate-500">

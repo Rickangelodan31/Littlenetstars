@@ -1,5 +1,5 @@
 import "@/styles/globals.css";
-import "react-easy-crop/react-easy-crop.css";
+import "react-image-crop/dist/ReactCrop.css";
 import type { AppProps } from "next/app";
 import { useEffect } from "react";
 import { useRouter } from "next/router";

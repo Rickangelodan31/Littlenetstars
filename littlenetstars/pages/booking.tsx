@@ -321,7 +321,7 @@ export default function Booking() {
                     </span>
                   ) : (
                     <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1.5 rounded-full">
-                      £30 per child
+                      £40 per child
                     </span>
                   )}
                 </div>
@@ -406,7 +406,9 @@ export default function Booking() {
 
                   {isFreeSession ? (
                     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-sm text-green-700 dark:text-green-300">
-                      <strong>Your first session is FREE (£0 today).</strong> After 30 days, you&apos;ll be charged £30/month. Cancel anytime before your next billing date to avoid the charge.
+                      <strong>Your first session is FREE (£0 today).</strong>{" "}
+                      After 30 days, you&apos;ll be charged £40/month. Cancel
+                      anytime before your next billing date to avoid the charge.
                     </div>
                   ) : (
                     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-4 text-sm text-purple-700 dark:text-purple-300">
@@ -427,14 +429,13 @@ export default function Booking() {
                     setError("");
                     setLoading(true);
                     try {
-                      const { bookingId } =
-                        await createBooking({
-                          location,
-                          date: selectedDate,
-                          time: selectedTime,
-                          children,
-                          parent,
-                        });
+                      const { bookingId } = await createBooking({
+                        location,
+                        date: selectedDate,
+                        time: selectedTime,
+                        children,
+                        parent,
+                      });
                       const { url } = await createCheckoutSession(bookingId);
                       window.location.href = url;
                     } catch (err) {
@@ -460,7 +461,9 @@ export default function Booking() {
             {/* Navigation buttons — back on all steps, continue on 1–3 */}
             <div className="flex justify-between mt-8">
               <button
-                onClick={() => step > 1 ? setStep((step - 1) as Step) : router.push("/")}
+                onClick={() =>
+                  step > 1 ? setStep((step - 1) as Step) : router.push("/")
+                }
                 className="text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
                 ← Back

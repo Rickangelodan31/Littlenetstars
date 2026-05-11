@@ -1,18 +1,19 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useState, useRef, useCallback } from "react";
-import Cropper from "react-easy-crop";
-import type { Point, Area } from "react-easy-crop";
+import ReactCrop, { type Crop as RICrop, type PixelCrop } from "react-image-crop";
 import {
   verifyAdmin, fetchAllBookings, deleteBooking, refundBooking,
   fetchSettings, saveSettings,
   fetchGallery, addGalleryByUrl, updateGalleryImage, deleteGalleryImage,
   fetchCoaches, addCoach, updateCoach, deleteCoach,
   fetchSubscriptions,
-  type GalleryImage, type Coach, type BookingRecord, type SubscriptionRecord,
+  fetchKitItems, addKitItem, updateKitItem, deleteKitItem,
+  fetchKitOrders, updateKitOrder, deleteKitOrder,
+  type GalleryImage, type Coach, type BookingRecord, type SubscriptionRecord, type KitItem, type KitOrderRecord,
 } from "@/lib/adminApi";
 
-type Tab = "bookings" | "sessions" | "content" | "gallery" | "coaches" | "subscriptions";
+type Tab = "bookings" | "sessions" | "content" | "gallery" | "coaches" | "subscriptions" | "kit";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "bookings",      label: "Bookings",      icon: "📋" },
@@ -20,6 +21,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "content",       label: "Content",        icon: "✏️" },
   { id: "gallery",       label: "Gallery",        icon: "🖼️" },
   { id: "coaches",       label: "Coaches",        icon: "👤" },
+  { id: "kit",           label: "Kit",            icon: "👕" },
   { id: "subscriptions", label: "Subscriptions",  icon: "⭐" },
 ];
 
@@ -73,6 +75,7 @@ function fileToDataUri(file: File, maxPx = 1400): Promise<string> {
 
 interface CropState {
   src: string;
+  originalSrc: string;
   caption: string;
   /** Where to send the result. "gallery-new" saves a new gallery item.
    *  "gallery-replace:<id>" replaces an existing gallery item.
@@ -84,36 +87,38 @@ interface CropState {
     | `gallery-replace:${string}`
     | "coach-new"
     | `coach-quick:${string}`
-    | "founder";
+    | "founder"
+    | "home-coach"
+    | "kit-new"
+    | `kit-quick:${string}`;
 }
 
 // ── Apply crop + adjustments to canvas ──────────────────────────────────────
 
-async function applyCropCanvas(
-  src: string,
-  pixelCrop: Area,
+function applyCropCanvas(
+  imgEl: HTMLImageElement,
+  crop: PixelCrop,
   brightness: number,
   contrast: number,
   maxPx = 1400,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      let outW = pixelCrop.width, outH = pixelCrop.height;
-      if (outW > maxPx || outH > maxPx) {
-        if (outW >= outH) { outH = Math.round((outH * maxPx) / outW); outW = maxPx; }
-        else               { outW = Math.round((outW * maxPx) / outH); outH = maxPx; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = outW; canvas.height = outH;
-      const ctx = canvas.getContext("2d")!;
-      ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
-      ctx.drawImage(img, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, outW, outH);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = reject;
-    img.src = src;
-  });
+): string {
+  const scaleX = imgEl.naturalWidth / imgEl.width;
+  const scaleY = imgEl.naturalHeight / imgEl.height;
+  const srcX = crop.x * scaleX;
+  const srcY = crop.y * scaleY;
+  let srcW = crop.width * scaleX;
+  let srcH = crop.height * scaleY;
+  let outW = srcW, outH = srcH;
+  if (outW > maxPx || outH > maxPx) {
+    if (outW >= outH) { outH = Math.round((outH * maxPx) / outW); outW = maxPx; }
+    else               { outW = Math.round((outW * maxPx) / outH); outH = maxPx; }
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext("2d")!;
+  ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+  ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+  return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -147,10 +152,9 @@ export default function AdminDashboard() {
 
   // Crop / Adjust modal
   const [cropState, setCropState] = useState<CropState | null>(null);
-  const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [aspect, setAspect] = useState<number>(4 / 3);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [ricCrop, setRicCrop] = useState<RICrop | undefined>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | undefined>();
+  const cropImgRef = useRef<HTMLImageElement>(null);
   const [cropBrightness, setCropBrightness] = useState(100);
   const [cropContrast, setCropContrast] = useState(100);
   const [cropSaving, setCropSaving] = useState(false);
@@ -167,12 +171,25 @@ export default function AdminDashboard() {
   // Founder photo (Content tab)
   const founderPhotoRef = useRef<HTMLInputElement>(null);
 
+  // Home coach photo (Content tab)
+  const homeCoachPhotoRef = useRef<HTMLInputElement>(null);
+
   // Gallery replace mode
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const replaceFileRef = useRef<HTMLInputElement>(null);
 
   // Subscriptions
   const [subscriptions, setSubscriptions] = useState<SubscriptionRecord[]>([]);
+
+  // Kit
+  const [kitItems, setKitItems] = useState<KitItem[]>([]);
+  const [kitForm, setKitForm] = useState({ name: "", description: "", price: 0, photoUrl: "", available: true, order: 0 });
+  const [editingKit, setEditingKit] = useState<string | null>(null);
+  const [kitMsg, setKitMsg] = useState("");
+  const kitPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Kit Orders
+  const [kitOrders, setKitOrders] = useState<KitOrderRecord[]>([]);
 
   useEffect(() => {
     const t = localStorage.getItem("adminToken");
@@ -191,6 +208,8 @@ export default function AdminDashboard() {
     fetchGallery(token).then(setImages).catch(console.error);
     fetchCoaches(token).then(setCoaches).catch(console.error);
     fetchSubscriptions(token).then(setSubscriptions).catch(console.error);
+    fetchKitItems(token).then(setKitItems).catch(console.error);
+    fetchKitOrders(token).then(setKitOrders).catch(console.error);
   }, [token]);
 
   function logout() {
@@ -201,13 +220,11 @@ export default function AdminDashboard() {
   // ── Open crop modal helper ───────────────────────────────────────────────
 
   function openCropModalWithSrc(src: string, target: CropState["target"], caption = "") {
-    setCropState({ src, caption, target });
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
+    setCropState({ src, originalSrc: src, caption, target });
+    setRicCrop(undefined);
+    setCompletedCrop(undefined);
     setCropBrightness(100);
     setCropContrast(100);
-    setAspect(target === "gallery-new" || target.startsWith("gallery-replace") ? 4 / 3 : 1);
   }
 
   async function openCropModal(file: File, target: CropState["target"], caption = "") {
@@ -218,12 +235,13 @@ export default function AdminDashboard() {
   // ── Crop apply ───────────────────────────────────────────────────────────
 
   const handleCropApply = useCallback(async () => {
-    if (!cropState || !token || !croppedAreaPixels) return;
+    if (!cropState || !token || !completedCrop || !cropImgRef.current) return;
+    if (completedCrop.width === 0 || completedCrop.height === 0) return;
     setCropSaving(true);
     try {
-      const maxPx = cropState.target.startsWith("coach") || cropState.target === "founder" ? 800 : 1400;
-      const dataUri = await applyCropCanvas(
-        cropState.src, croppedAreaPixels,
+      const maxPx = cropState.target.startsWith("coach") || cropState.target === "founder" || cropState.target === "home-coach" || cropState.target.startsWith("kit") ? 1200 : 1400;
+      const dataUri = applyCropCanvas(
+        cropImgRef.current, completedCrop,
         cropBrightness, cropContrast, maxPx,
       );
 
@@ -251,6 +269,19 @@ export default function AdminDashboard() {
       } else if (cropState.target === "founder") {
         setSetting("about_hero_photo", dataUri);
         if (founderPhotoRef.current) founderPhotoRef.current.value = "";
+        await saveSettings(token, { about_hero_photo: dataUri });
+      } else if (cropState.target === "home-coach") {
+        setSetting("home_coach_photo", dataUri);
+        if (homeCoachPhotoRef.current) homeCoachPhotoRef.current.value = "";
+        await saveSettings(token, { home_coach_photo: dataUri });
+      } else if (cropState.target === "kit-new") {
+        setKitForm((f) => ({ ...f, photoUrl: dataUri }));
+        if (kitPhotoRef.current) kitPhotoRef.current.value = "";
+      } else if (cropState.target.startsWith("kit-quick:")) {
+        const id = cropState.target.replace("kit-quick:", "");
+        const updated = await updateKitItem(token, id, { photoUrl: dataUri });
+        setKitItems((p) => p.map((k) => k._id === id ? updated : k));
+        setKitMsg("Photo updated.");
       }
 
       setCropState(null);
@@ -258,7 +289,7 @@ export default function AdminDashboard() {
       setGalleryMsg("Upload failed — please try again.");
     }
     setCropSaving(false);
-  }, [cropState, token, croppedAreaPixels, cropBrightness, cropContrast, images.length]);
+  }, [cropState, token, completedCrop, cropBrightness, cropContrast, images.length]);
 
   // ── Settings ─────────────────────────────────────────────────────────────
 
@@ -348,6 +379,37 @@ export default function AdminDashboard() {
   function startEditCoach(coach: Coach) {
     setEditingCoach(coach._id);
     setCoachForm({ name: coach.name, title: coach.title, bio: coach.bio, photoUrl: coach.photoUrl, order: coach.order });
+  }
+
+  // ── Kit handlers ─────────────────────────────────────────────────
+
+  async function handleSaveKit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    try {
+      if (editingKit) {
+        const updated = await updateKitItem(token, editingKit, kitForm);
+        setKitItems((p) => p.map((k) => k._id === editingKit ? updated : k));
+        setEditingKit(null);
+        setKitMsg("Item updated.");
+      } else {
+        const created = await addKitItem(token, kitForm);
+        setKitItems((p) => [...p, created]);
+        setKitMsg("Item added.");
+      }
+      setKitForm({ name: "", description: "", price: 0, photoUrl: "", available: true, order: 0 });
+    } catch { setKitMsg("Failed to save item."); }
+  }
+
+  async function handleDeleteKit(id: string) {
+    if (!token || !confirm("Delete this kit item?")) return;
+    await deleteKitItem(token, id);
+    setKitItems((p) => p.filter((k) => k._id !== id));
+  }
+
+  function startEditKit(item: KitItem) {
+    setEditingKit(item._id);
+    setKitForm({ name: item.name, description: item.description, price: item.price, photoUrl: item.photoUrl, available: item.available, order: item.order });
   }
 
   if (!ready) return (
@@ -604,22 +666,239 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Website Content</h2>
                 <p className="text-xs text-slate-400">Edit the text that appears on your website. Click Save to apply changes.</p>
 
-                {/* Homepage */}
+                {/* Home Page Hero */}
                 <div className={sectionCls}>
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Homepage</h3>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — Hero</h3>
                   {[
-                    { key: "hero_title",       label: "Main Title",          placeholder: "LittleNetStars",                    rows: 1 },
-                    { key: "hero_subtitle",    label: "Tagline",              placeholder: "Building Confidence Through Netball", rows: 1 },
-                    { key: "hero_description", label: "Hero Description",     placeholder: "Fun, structured netball training…",   rows: 2 },
-                    { key: "coaches_teaser",   label: "Coaches Section Text", placeholder: "Led by Affy Morris…",                rows: 3 },
-                    { key: "cta_text",         label: "CTA Description",      placeholder: "Your child's first session is on us…",rows: 2 },
+                    { key: "hero_title",       label: "Main Title",      placeholder: "LittleNetStars",                    rows: 1 },
+                    { key: "hero_subtitle",    label: "Tagline",         placeholder: "Building Confidence Through Netball", rows: 1 },
+                    { key: "hero_description", label: "Hero Description", placeholder: "Fun, structured netball training…",  rows: 2 },
                   ].map(({ key, label, placeholder, rows }) => (
                     <div key={key}>
                       <label className={labelCls}>{label}</label>
                       <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
                         onChange={(e) => setSetting(key, e.target.value)}
-                        className={inputCls + " resize-none"}
-                      />
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Home Page — Programmes Slideshow */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — Programmes Slideshow</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_programmes_show !== "false"}
+                        onChange={(e) => setSetting("home_programmes_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  {[
+                    { key: "home_programmes_title",    label: "Section Title",    placeholder: "More Ways to Play",                              rows: 1 },
+                    { key: "home_programmes_subtitle", label: "Section Subtitle", placeholder: "Beyond weekend sessions — camps, schools & nurseries", rows: 1 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-2">Camp Slide</p>
+                  {[
+                    { key: "home_camp_tag",         label: "Badge Text",        placeholder: "Easter Holidays",                rows: 1 },
+                    { key: "home_camp_title",        label: "Slide Title",       placeholder: "Little Netters Camps",           rows: 1 },
+                    { key: "home_camp_description",  label: "Description",       placeholder: "Exciting two-day netball camps…", rows: 3 },
+                    { key: "home_camp_dates",        label: "Dates",             placeholder: "Thu 1st – Fri 2nd April 2027",   rows: 1 },
+                    { key: "home_camp_time",         label: "Time",              placeholder: "9:00am – 4:00pm",                rows: 1 },
+                    { key: "home_camp_full",         label: "Full Camp Price",   placeholder: "£95.00",                         rows: 1 },
+                    { key: "home_camp_single",       label: "Single Day Price",  placeholder: "£60.00",                         rows: 1 },
+                    { key: "home_camp_cta",          label: "Button Text",       placeholder: "View Camp Details",              rows: 1 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-2">Schools & Nurseries Slide</p>
+                  {[
+                    { key: "home_schools_tag",         label: "Badge Text",      placeholder: "Schools & Nurseries",                         rows: 1 },
+                    { key: "home_schools_title",        label: "Slide Title",    placeholder: "We Come to You",                              rows: 1 },
+                    { key: "home_schools_description",  label: "Description",   placeholder: "Little Netters delivers tailored sessions…",    rows: 3 },
+                    { key: "home_schools_ages",         label: "Age Group",      placeholder: "2–11 years old",                              rows: 1 },
+                    { key: "home_schools_length",       label: "Session Length", placeholder: "1 hour",                                      rows: 1 },
+                    { key: "home_schools_plans",        label: "Session Plans",  placeholder: "Tailored to your needs",                       rows: 1 },
+                    { key: "home_schools_delivery",     label: "Delivery",       placeholder: "Schools & nurseries",                          rows: 1 },
+                    { key: "home_schools_cta",          label: "Button Text",    placeholder: "Find Out More",                                rows: 1 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Home Page — How It Works */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — How It Works</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_howitworks_show !== "false"}
+                        onChange={(e) => setSetting("home_howitworks_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  {[
+                    { key: "home_howitworks_title",    label: "Section Title",    placeholder: "How It Works",                            rows: 1 },
+                    { key: "home_howitworks_subtitle", label: "Section Subtitle", placeholder: "Three easy steps to get your child on court", rows: 1 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Step {n}</p>
+                      {[
+                        { key: `home_step${n}_icon`,  label: "Icon (emoji)", placeholder: n === 1 ? "📅" : n === 2 ? "👧" : "✅", rows: 1 },
+                        { key: `home_step${n}_title`, label: "Title",        placeholder: n === 1 ? "Choose a Date" : n === 2 ? "Add Your Child" : "Secure Your Session", rows: 1 },
+                        { key: `home_step${n}_desc`,  label: "Description",  placeholder: n === 1 ? "Pick from available sessions…" : n === 2 ? "Enter your child's details…" : "Pay securely via card…", rows: 2 },
+                      ].map(({ key, label, placeholder, rows }) => (
+                        <div key={key}>
+                          <label className={labelCls}>{label}</label>
+                          <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                            onChange={(e) => setSetting(key, e.target.value)}
+                            className={inputCls + " resize-none"} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Home Page — Session Details */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — Session Details Bar</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_session_show !== "false"}
+                        onChange={(e) => setSetting("home_session_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Edit Days, Duration &amp; Locations in the Sessions tab.</p>
+                </div>
+
+                {/* Home Page — Meet the Coaches */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — Meet the Coaches</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_coaches_show !== "false"}
+                        onChange={(e) => setSetting("home_coaches_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Coaches Section Text</label>
+                    <textarea rows={3} value={settings.coaches_teaser ?? ""} placeholder="Led by Affy Morris…"
+                      onChange={(e) => setSetting("coaches_teaser", e.target.value)}
+                      className={inputCls + " resize-none"} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Coach Photo (Home Page)</label>
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        title="Click to crop & adjust this photo"
+                        onClick={() => openCropModalWithSrc(settings.home_coach_photo || "/Affy.jpg", "home-coach")}
+                        className="shrink-0 relative group"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={settings.home_coach_photo || "/Affy.jpg"}
+                          alt="Home coach"
+                          className="w-20 h-20 rounded-2xl object-cover border-2 border-transparent group-hover:border-purple-500 transition-all"
+                        />
+                        <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center transition-opacity text-white text-xs font-semibold">
+                          ✂️ Crop
+                        </span>
+                      </button>
+                      <div className="flex-1 space-y-2">
+                        <input ref={homeCoachPhotoRef} type="file" accept="image/*"
+                          onChange={async (e) => { const file = e.target.files?.[0]; if (file) await openCropModal(file, "home-coach"); }}
+                          className="text-sm text-slate-500 dark:text-slate-400 w-full" />
+                        <p className="text-xs text-slate-400">
+                          Click the photo to crop &amp; adjust it, or upload a new one.
+                          {settings.home_coach_photo ? " Using your custom photo." : " Currently showing the default Affy photo — click it to crop."}
+                        </p>
+                        {settings.home_coach_photo && (
+                          <button onClick={() => setSetting("home_coach_photo", "")} className="text-xs text-red-500 hover:text-red-700">
+                            Remove custom — revert to default
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Home Page — Monthly Plans */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — Monthly Plans</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_plans_show !== "false"}
+                        onChange={(e) => setSetting("home_plans_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  {[
+                    { key: "home_plans_title",    label: "Section Title",    placeholder: "Subscribe & Save",                                        rows: 1 },
+                    { key: "home_plans_subtitle", label: "Section Subtitle", placeholder: "Secure all weekend sessions for the month at a discounted rate", rows: 1 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
+                    </div>
+                  ))}
+                  <p className="text-xs text-slate-400">Edit plan prices in the Sessions tab.</p>
+                </div>
+
+                {/* Home Page — CTA Banner */}
+                <div className={sectionCls}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Home Page — CTA Banner</h3>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input type="checkbox" checked={settings.home_cta_show !== "false"}
+                        onChange={(e) => setSetting("home_cta_show", e.target.checked ? "true" : "false")}
+                        className="accent-purple-600 w-4 h-4" />
+                      Show section
+                    </label>
+                  </div>
+                  {[
+                    { key: "home_cta_title",  label: "Heading",      placeholder: "Ready to start their netball journey?",                              rows: 1 },
+                    { key: "cta_text",        label: "Description",  placeholder: "Your child's first session is on us — no card needed…",              rows: 2 },
+                    { key: "home_cta_button", label: "Button Text",  placeholder: "Book Free Session",                                                   rows: 1 },
+                    { key: "home_cta_note",   label: "Small Print",  placeholder: "One free session per email address. Free cancellation up to 48 hours…", rows: 2 },
+                  ].map(({ key, label, placeholder, rows }) => (
+                    <div key={key}>
+                      <label className={labelCls}>{label}</label>
+                      <textarea rows={rows} value={settings[key] ?? ""} placeholder={placeholder}
+                        onChange={(e) => setSetting(key, e.target.value)}
+                        className={inputCls + " resize-none"} />
                     </div>
                   ))}
                 </div>
@@ -1091,6 +1370,254 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* ── KIT ── */}
+            {tab === "kit" && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Kit</h2>
+                <p className="text-xs text-slate-400">Add kit items that appear on the Kit page. Upload a photo, set a name, description, and price.</p>
+
+                {kitMsg && <p className="text-sm text-green-600 dark:text-green-400">{kitMsg}</p>}
+
+                {/* Form */}
+                <div className={sectionCls}>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">{editingKit ? "Edit Item" : "Add New Item"}</h3>
+                  <form onSubmit={handleSaveKit} className="space-y-4">
+
+                    {/* Photo */}
+                    <div>
+                      <label className={labelCls}>Photo</label>
+                      <div className="flex items-center gap-4">
+                        {kitForm.photoUrl ? (
+                          <button type="button" onClick={() => openCropModalWithSrc(kitForm.photoUrl, "kit-new")}
+                            className="shrink-0 relative group w-20 h-20 rounded-xl overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={kitForm.photoUrl} alt="preview" className="w-full h-full object-cover" />
+                            <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-semibold transition-opacity">Edit</span>
+                          </button>
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-3xl shrink-0">👕</div>
+                        )}
+                        <div className="flex-1 space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer text-sm text-purple-600 dark:text-purple-400 font-medium hover:underline">
+                            📷 {kitForm.photoUrl ? "Change photo" : "Upload photo"} (opens editor)
+                            <input ref={kitPhotoRef} type="file" accept="image/*" className="hidden"
+                              onChange={async (e) => { const f = e.target.files?.[0]; if (f) await openCropModal(f, "kit-new"); }} />
+                          </label>
+                          {kitForm.photoUrl && (
+                            <button type="button" onClick={() => setKitForm((f) => ({ ...f, photoUrl: "" }))}
+                              className="text-xs text-red-500 hover:text-red-700">Remove photo</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Item Name *</label>
+                        <input required placeholder="e.g. Training Bib" value={kitForm.name}
+                          onChange={(e) => setKitForm((f) => ({ ...f, name: e.target.value }))}
+                          className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Price (£)</label>
+                        <input type="number" min={0} step={0.01} placeholder="0.00"
+                          value={kitForm.price > 0 ? (kitForm.price / 100).toFixed(2) : ""}
+                          onChange={(e) => setKitForm((f) => ({ ...f, price: Math.round(Number(e.target.value) * 100) }))}
+                          className={inputCls} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelCls}>Description</label>
+                      <textarea rows={3} placeholder="Describe this kit item…" value={kitForm.description}
+                        onChange={(e) => setKitForm((f) => ({ ...f, description: e.target.value }))}
+                        className={inputCls + " resize-none"} />
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <label className={labelCls}>Display Order</label>
+                        <input type="number" min={0} value={kitForm.order}
+                          onChange={(e) => setKitForm((f) => ({ ...f, order: Number(e.target.value) }))}
+                          className={inputCls} style={{ maxWidth: 100 }} />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer mt-5">
+                        <input type="checkbox" checked={kitForm.available}
+                          onChange={(e) => setKitForm((f) => ({ ...f, available: e.target.checked }))}
+                          className="accent-purple-600 w-4 h-4" />
+                        Available (shown on site)
+                      </label>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button type="submit"
+                        className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
+                        {editingKit ? "Save Changes" : "Add Item"}
+                      </button>
+                      {editingKit && (
+                        <button type="button"
+                          onClick={() => { setEditingKit(null); setKitForm({ name: "", description: "", price: 0, photoUrl: "", available: true, order: 0 }); }}
+                          className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Cancel</button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+
+                {/* Items list */}
+                <div className="space-y-3">
+                  {kitItems.length === 0 && <p className="text-slate-400 text-sm">No kit items yet. Add your first item above.</p>}
+                  {kitItems.map((item) => (
+                    <div key={item._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-4">
+                        {/* Photo */}
+                        <button type="button" title="Click to edit photo"
+                          onClick={() => item.photoUrl
+                            ? openCropModalWithSrc(item.photoUrl, `kit-quick:${item._id}` as CropState["target"])
+                            : setKitMsg("Edit the item to upload a photo.")
+                          }
+                          className="shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex items-center justify-center relative group">
+                          {item.photoUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={item.photoUrl} alt={item.name} className="w-full h-full object-cover" />
+                              <span className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">Edit</span>
+                            </>
+                          ) : (
+                            <span className="text-2xl">👕</span>
+                          )}
+                        </button>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                            {!item.available && (
+                              <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">Hidden</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-bold text-purple-600 dark:text-purple-400">£{(item.price / 100).toFixed(2)}</p>
+                          {item.description && <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{item.description}</p>}
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 shrink-0 items-end">
+                          <button onClick={() => startEditKit(item)}
+                            className="text-xs bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 font-semibold px-3 py-1.5 rounded-lg">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDeleteKit(item._id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick photo upload */}
+                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                        <label className="flex items-center justify-center gap-1.5 w-full text-xs bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-medium py-1.5 rounded-lg transition-colors cursor-pointer">
+                          📷 {item.photoUrl ? "Replace Photo" : "Upload Photo"} (opens editor)
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={async (e) => { const f = e.target.files?.[0]; if (f) await openCropModal(f, `kit-quick:${item._id}` as CropState["target"]); }} />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Ready Time Setting */}
+                <div className={sectionCls}>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Order Ready Time</h3>
+                  <p className="text-xs text-slate-400 mb-3">This message appears in the order confirmation email sent to customers.</p>
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <label className={labelCls}>Ready in…</label>
+                      <input
+                        type="text"
+                        placeholder="approximately 2 weeks"
+                        value={settings.kit_ready_time ?? ""}
+                        onChange={(e) => setSetting("kit_ready_time", e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                    <button onClick={handleSaveSettings} disabled={settingsSaving}
+                      className="shrink-0 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                      {settingsSaved ? "Saved ✓" : settingsSaving ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Kit Orders */}
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+                    Kit Orders <span className="text-base font-normal text-slate-400 ml-1">({kitOrders.length})</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-4">Orders placed by customers on the Kit page.</p>
+
+                  {kitOrders.length === 0 && (
+                    <p className="text-slate-400 text-sm">No orders yet.</p>
+                  )}
+
+                  <div className="space-y-3">
+                    {kitOrders.map((order) => {
+                      const statusColour =
+                        order.status === "collected" ? "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400"
+                        : order.status === "ready"    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        :                               "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500";
+                      return (
+                        <div key={order._id} className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            {order.itemPhoto && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={order.itemPhoto} alt={order.itemName} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-900 dark:text-white">{order.itemName}</span>
+                                {order.size && <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">Size {order.size}</span>}
+                                {order.quantity > 1 && <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">×{order.quantity}</span>}
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColour}`}>
+                                  {order.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">{order.customer.name} · {order.customer.email}</p>
+                              {order.customer.phone && <p className="text-xs text-slate-400">{order.customer.phone}</p>}
+                              {order.notes && <p className="text-xs text-slate-400 mt-1 italic">&ldquo;{order.notes}&rdquo;</p>}
+                              <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">
+                                {new Date(order.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-1.5 shrink-0 items-end">
+                              <select
+                                value={order.status}
+                                onChange={async (e) => {
+                                  if (!token) return;
+                                  const updated = await updateKitOrder(token, order._id, { status: e.target.value as KitOrderRecord["status"] });
+                                  setKitOrders((p) => p.map((o) => o._id === order._id ? updated : o));
+                                }}
+                                className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="ready">Ready</option>
+                                <option value="collected">Collected</option>
+                              </select>
+                              <button
+                                onClick={async () => {
+                                  if (!token || !confirm("Delete this order?")) return;
+                                  await deleteKitOrder(token, order._id);
+                                  setKitOrders((p) => p.filter((o) => o._id !== order._id));
+                                }}
+                                className="text-xs text-red-400 hover:text-red-600 font-medium"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── SUBSCRIPTIONS ── */}
             {tab === "subscriptions" && (
               <div className="space-y-4">
@@ -1149,73 +1676,51 @@ export default function AdminDashboard() {
       {/* ── CROP & ADJUST MODAL ─────────────────────────────────────────────── */}
       {cropState && (
         <div className="fixed inset-0 z-[60] bg-black/85 flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg my-4 overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden flex flex-col">
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 shrink-0">
-              <h3 className="font-bold text-slate-900 dark:text-white">Edit Photo</h3>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">Crop Photo</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Click &amp; drag to draw your crop · drag corners to resize</p>
+              </div>
               <button onClick={() => { setCropState(null); if (galleryFileRef.current) galleryFileRef.current.value = ""; }}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                 aria-label="Close">×</button>
             </div>
 
-            {/* Aspect ratio picker */}
-            <div className="flex items-center gap-2 px-5 pt-3 shrink-0">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mr-1">Shape:</span>
-              {[
-                { label: "4:3",    value: 4 / 3 },
-                { label: "1:1",    value: 1 },
-                { label: "16:9",   value: 16 / 9 },
-                { label: "3:4",    value: 3 / 4 },
-              ].map((opt) => (
-                <button key={opt.label}
-                  onClick={() => setAspect(opt.value)}
-                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-colors ${
-                    Math.abs(aspect - opt.value) < 0.01
-                      ? "bg-purple-600 text-white border-purple-600"
-                      : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-purple-400"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            {/* Interactive crop area */}
+            <div className="px-5 pt-4 shrink-0 flex justify-center bg-slate-950">
+              <ReactCrop
+                crop={ricCrop}
+                onChange={(c) => setRicCrop(c)}
+                onComplete={(c) => setCompletedCrop(c)}
+                keepSelection
+                style={{ maxHeight: 420, maxWidth: "100%" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={cropImgRef}
+                  src={cropState.src}
+                  alt="crop preview"
+                  style={{
+                    maxHeight: 420,
+                    maxWidth: "100%",
+                    display: "block",
+                    filter: `brightness(${cropBrightness}%) contrast(${cropContrast}%)`,
+                  }}
+                />
+              </ReactCrop>
             </div>
 
-            {/* Interactive crop area */}
-            <div className="px-5 pt-3 shrink-0">
-              <p className="text-xs text-slate-400 mb-2">Drag to reposition · Pinch or scroll to zoom</p>
-              <div className="relative w-full rounded-xl overflow-hidden bg-slate-900" style={{ height: 300 }}>
-                <Cropper
-                  image={cropState.src}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={aspect}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={(_: Area, pixels: Area) => setCroppedAreaPixels(pixels)}
-                  style={{
-                    containerStyle: { borderRadius: 12 },
-                    mediaStyle: {
-                      filter: `brightness(${cropBrightness}%) contrast(${cropContrast}%)`,
-                    },
-                  }}
-                  showGrid
-                  zoomWithScroll
-                />
-              </div>
-            </div>
+            {!ricCrop && (
+              <p className="text-xs text-center text-purple-400 py-2 bg-slate-950">
+                Click and drag on the photo to select what you want to keep
+              </p>
+            )}
 
             {/* Controls */}
             <div className="px-5 py-4 space-y-3 shrink-0">
-              {/* Zoom */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Zoom</span>
-                <input type="range" min={1} max={3} step={0.01} value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="flex-1 accent-purple-600" />
-                <span className="text-xs text-slate-400 w-10 text-right shrink-0">{zoom.toFixed(1)}×</span>
-              </div>
-
               {/* Brightness */}
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Brightness</span>
@@ -1236,7 +1741,13 @@ export default function AdminDashboard() {
 
               {/* Reset */}
               <button
-                onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); setCropBrightness(100); setCropContrast(100); }}
+                onClick={() => {
+                  setCropState((s) => s ? { ...s, src: s.originalSrc } : s);
+                  setRicCrop(undefined);
+                  setCompletedCrop(undefined);
+                  setCropBrightness(100);
+                  setCropContrast(100);
+                }}
                 className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
               >
                 Reset
@@ -1261,10 +1772,10 @@ export default function AdminDashboard() {
             <div className="flex gap-3 px-5 pb-5 shrink-0">
               <button
                 onClick={handleCropApply}
-                disabled={cropSaving || !croppedAreaPixels}
+                disabled={cropSaving || !completedCrop || completedCrop.width === 0}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
               >
-                {cropSaving ? "Saving…" : "Save Photo"}
+                {cropSaving ? "Saving…" : completedCrop ? "Save Photo" : "Draw a crop first"}
               </button>
               <button
                 onClick={() => { setCropState(null); if (galleryFileRef.current) galleryFileRef.current.value = ""; }}
