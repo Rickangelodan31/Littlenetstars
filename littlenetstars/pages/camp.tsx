@@ -11,7 +11,7 @@ export default function Camp() {
         <title>Little Netstars Camps – LittleNetStars</title>
         <meta
           name="description"
-          content="Little Netstars Camps for children aged 4–11. Fun 1-hour netball sessions during the Easter holidays with flexible 1-day or 2-day options."
+          content="Little Netstars Camps for children aged 3–7. Fun 1-hour netball sessions during the Easter holidays with flexible 1-day or 2-day options."
         />
       </Head>
 
@@ -33,7 +33,7 @@ export default function Camp() {
                 Little Netstars Camps
               </h1>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                Little Netstars Camps for children aged 4–11 years old.
+                Little Netstars Camps for children aged 3–7 years old.
               </p>
               <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
                 We are excited to announce a two-day netball camp filled with fun skills, drills, activities, and games. We will also be joined by special guest coaches from the Superleague teams.
@@ -153,7 +153,7 @@ export default function Camp() {
               {[
                 {
                   icon: "⚽",
-                  title: "Ages 4–11",
+                  title: "Ages 3–7",
                   desc: "Suitable for all ages and abilities",
                 },
                 {

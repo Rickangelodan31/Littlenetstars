@@ -728,7 +728,7 @@ export default function AdminDashboard() {
                     { key: "home_schools_tag",         label: "Badge Text",      placeholder: "Schools & Nurseries",                         rows: 1 },
                     { key: "home_schools_title",        label: "Slide Title",    placeholder: "We Come to You",                              rows: 1 },
                     { key: "home_schools_description",  label: "Description",   placeholder: "Little Netstars delivers tailored sessions…",    rows: 3 },
-                    { key: "home_schools_ages",         label: "Age Group",      placeholder: "4–11 years old",                              rows: 1 },
+                    { key: "home_schools_ages",         label: "Age Group",      placeholder: "3–7 years old",                               rows: 1 },
                     { key: "home_schools_length",       label: "Session Length", placeholder: "1 hour",                                      rows: 1 },
                     { key: "home_schools_plans",        label: "Session Plans",  placeholder: "Tailored to your needs",                       rows: 1 },
                     { key: "home_schools_delivery",     label: "Delivery",       placeholder: "Schools & nurseries",                          rows: 1 },

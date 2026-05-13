@@ -11,7 +11,7 @@ export default function Schools() {
         <title>Schools & Nurseries – LittleNetStars</title>
         <meta
           name="description"
-          content="Littlenetstars offers engaging football sessions for schools and nurseries for children aged 4–11. Sessions adapted to your setting's requirements."
+          content="Littlenetstars offers engaging football sessions for schools and nurseries for children aged 3–7. Sessions adapted to your setting's requirements."
         />
       </Head>
 
@@ -78,7 +78,7 @@ export default function Schools() {
             </motion.h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
               {[
-                { icon: "👶", title: "Age Group", desc: "4–11 years old" },
+                { icon: "👶", title: "Age Group", desc: "3–7 years old" },
                 { icon: "⏱️", title: "Session Time", desc: "1 hour" },
                 {
                   icon: "📋",

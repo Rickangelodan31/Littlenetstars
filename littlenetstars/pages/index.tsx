@@ -126,7 +126,7 @@ export default function Home({ settings }: Props) {
       title: s.home_camp_title || "Little Netstars Camps",
       description:
         s.home_camp_description ||
-        "Exciting two-day netball camps for children aged 4–11. Fun skills, drills, activities, and games — joined by special guest coaches from Superleague teams.",
+        "Exciting two-day netball camps for children aged 3–7. Fun skills, drills, activities, and games — joined by special guest coaches from Superleague teams.",
       details: [
         {
           icon: "📅",
@@ -163,7 +163,7 @@ export default function Home({ settings }: Props) {
         {
           icon: "👶",
           label: "Age Group",
-          value: s.home_schools_ages || "4–11 years old",
+          value: s.home_schools_ages || "3–7 years old",
         },
         {
           icon: "⏱️",
