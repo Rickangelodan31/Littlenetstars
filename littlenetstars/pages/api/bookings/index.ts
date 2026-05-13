@@ -20,8 +20,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const bookingDate = new Date(date);
   const dayOfWeek = bookingDate.getUTCDay();
-  if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-    return res.status(400).json({ error: "Sessions are only available on weekends" });
+  if (dayOfWeek !== 5) {
+    return res.status(400).json({ error: "Sessions are only available on Fridays" });
   }
 
   const existingFree = await Booking.findOne({

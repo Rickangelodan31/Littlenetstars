@@ -48,25 +48,26 @@ export default function Subscriptions({
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
 
   const fmt = (pence: number) => `£${(pence / 100).toFixed(0)}`;
 
   const plans = [
     {
       id: "saturdays" as const,
-      title: settings.plan_saturday_name || "Saturday Sessions",
+      title: settings.plan_saturday_name || "Friday Sessions",
       price: fmt(saturdayPrice),
       badge: null,
-      days: "Every Saturday",
-      sessionsDesc: "~4 sessions per month",
+      days: "Every Friday",
+      sessionsDesc: "~4 sessions per month · starts 17 July 2026",
       features: [
-        "Every Saturday session included",
-        "45-minute structured session",
-        "Same coach each week",
+        "Every Friday session included",
+        "1 hour structured session",
+        "Qualified coach each week",
         "London or Manchester",
         "Cancel anytime",
       ],
-      cta: "Subscribe – Saturdays",
+      cta: "Subscribe – Fridays",
       accent: "purple",
     },
     {
@@ -74,13 +75,13 @@ export default function Subscriptions({
       title: settings.plan_both_name || "Weekend Sessions",
       price: fmt(bothPrice),
       badge: "Best Value",
-      days: "Every Saturday & Sunday",
+      days: "Every Friday & Sunday",
       sessionsDesc: "Up to ~8 sessions per month",
       features: [
-        "Every Saturday session included",
+        "Every Friday session included",
         "Every Sunday session included",
-        "45-minute structured sessions",
-        "Same coach each week",
+        "1 hour structured sessions",
+        "Qualified coach each week",
         "London or Manchester",
         "Cancel anytime",
       ],
@@ -90,12 +91,11 @@ export default function Subscriptions({
   ];
 
   function choosePlan(id: PlanId) {
+    if (id === "both") { setComingSoonOpen(true); return; }
     setSelectedPlan(id);
     setError("");
     setTimeout(() => {
-      document
-        .getElementById("checkout-form")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("checkout-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 100);
   }
 
@@ -131,7 +131,7 @@ export default function Subscriptions({
         <title>Monthly Subscription Plans – LittleNetStars</title>
         <meta
           name="description"
-          content="Subscribe to all Saturday or Weekend netball sessions at a discounted monthly rate."
+          content="Subscribe to all Friday netball sessions at a discounted monthly rate. Sessions start 17 July 2026."
         />
       </Head>
 
@@ -215,18 +215,30 @@ export default function Subscriptions({
                   ))}
                 </ul>
 
-                <button
-                  onClick={() => choosePlan(plan.id)}
-                  className={`w-full py-3 rounded-full font-bold text-sm transition-all hover:scale-105 ${
-                    selectedPlan === plan.id
-                      ? "bg-green-500 text-white"
-                      : plan.badge
-                        ? "bg-yellow-400 hover:bg-yellow-500 text-slate-900"
+                {plan.id === "both" ? (
+                  <>
+                    <div className="mb-3 flex items-center justify-center gap-1.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-xs font-semibold px-3 py-1.5 rounded-full">
+                      🔒 Coming Soon — venue being confirmed
+                    </div>
+                    <button
+                      onClick={() => choosePlan(plan.id)}
+                      className="w-full py-3 rounded-full font-bold text-sm bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      🔒 Coming Soon
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => choosePlan(plan.id)}
+                    className={`w-full py-3 rounded-full font-bold text-sm transition-all hover:scale-105 ${
+                      selectedPlan === plan.id
+                        ? "bg-green-500 text-white"
                         : "bg-purple-600 hover:bg-purple-700 text-white"
-                  }`}
-                >
-                  {selectedPlan === plan.id ? "Selected ✓" : plan.cta}
-                </button>
+                    }`}
+                  >
+                    {selectedPlan === plan.id ? "Selected ✓" : plan.cta}
+                  </button>
+                )}
               </motion.div>
             ))}
           </div>
@@ -313,11 +325,11 @@ export default function Subscriptions({
               {[
                 {
                   q: "When do the sessions run?",
-                  a: "Sessions run every Saturday (and Sunday for the Weekend plan) throughout the month. Each session is 45 minutes long.",
+                  a: "Sessions run every Friday throughout the month, starting 17 July 2026. Each session is 1 hour long.",
                 },
                 {
                   q: "How many sessions are included?",
-                  a: "It depends on the number of Saturdays/Sundays in the month — typically 4 each, so up to 8 sessions on the Weekend plan.",
+                  a: "It depends on the number of Fridays in the month — typically 4 sessions per month on the Friday plan.",
                 },
                 {
                   q: "Can I cancel my subscription?",
@@ -350,6 +362,28 @@ export default function Subscriptions({
       </main>
 
       <Footer />
+
+      {/* Coming Soon modal */}
+      {comingSoonOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+            <div className="text-5xl mb-4">🔒</div>
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">
+              Coming Soon
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6">
+              Our monthly subscription plans are not yet available — we&apos;re still confirming our venue.
+              Once we&apos;re set up we&apos;ll open subscriptions and you&apos;ll be the first to know!
+            </p>
+            <button
+              onClick={() => setComingSoonOpen(false)}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 rounded-full text-sm transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

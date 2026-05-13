@@ -11,7 +11,7 @@ export default function Schools() {
         <title>Schools & Nurseries – LittleNetStars</title>
         <meta
           name="description"
-          content="Littlenetstars offers engaging football sessions for schools and nurseries for children aged 2–11. Sessions adapted to your setting's requirements."
+          content="Littlenetstars offers engaging football sessions for schools and nurseries for children aged 4–11. Sessions adapted to your setting's requirements."
         />
       </Head>
 
@@ -33,7 +33,7 @@ export default function Schools() {
                 Schools &amp; Nurseries
               </h1>
               <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                Providing you have a suitable space, Little Netters can offer
+                Providing you have a suitable space, Little Netstars can offer
                 sessions in schools and nurseries.
               </p>
               <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed">
@@ -78,7 +78,7 @@ export default function Schools() {
             </motion.h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
               {[
-                { icon: "👶", title: "Age Group", desc: "2–11 years old" },
+                { icon: "👶", title: "Age Group", desc: "4–11 years old" },
                 { icon: "⏱️", title: "Session Time", desc: "1 hour" },
                 {
                   icon: "📋",
@@ -124,7 +124,7 @@ export default function Schools() {
             className="max-w-2xl mx-auto text-center"
           >
             <h2 className="text-3xl font-bold text-white">
-              Interested in Little Netters for your school?
+              Interested in Little Netstars for your school?
             </h2>
             <p className="mt-4 text-purple-200">
               Get in touch and we&apos;ll tailor a programme to suit your

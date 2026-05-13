@@ -100,12 +100,12 @@ export default function PaymentSuccess() {
                 Subscription Confirmed!
               </h1>
               <div className="mt-2 inline-flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-3 py-1.5 rounded-full">
-                {plan === "both" ? "Weekend Sessions" : "Saturday Sessions"} —
+                {plan === "both" ? "Weekend Sessions" : "Friday Sessions"} —
                 Active
               </div>
               <p className="mt-4 text-slate-500 dark:text-slate-400 text-sm">
                 Your subscription is now active. You&apos;re all set for every{" "}
-                {plan === "both" ? "Saturday and Sunday" : "Saturday"} this
+                {plan === "both" ? "Friday and Sunday" : "Friday"} this
                 month.
               </p>
               <p className="mt-2 text-slate-400 dark:text-slate-500 text-xs">

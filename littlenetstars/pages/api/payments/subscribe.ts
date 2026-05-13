@@ -9,13 +9,13 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.littlenetstars
 const PLAN_DEFAULTS = {
   saturdays: {
     amount: 10000,
-    name: "LittleNetStars – Saturday Sessions",
-    description: "All Saturday netball sessions for the month (approx. 4 sessions)",
+    name: "LittleNetStars – Friday Sessions",
+    description: "All Friday netball sessions for the month (approx. 4 sessions)",
   },
   both: {
     amount: 16000,
     name: "LittleNetStars – Weekend Sessions",
-    description: "All Saturday & Sunday netball sessions for the month (up to 8 sessions)",
+    description: "All Friday & Sunday netball sessions for the month (up to 8 sessions)",
   },
 } as const;
 

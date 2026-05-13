@@ -616,7 +616,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <label className={labelCls}>Session Duration</label>
-                    <input type="text" value={settings.duration ?? "45 Minutes"}
+                    <input type="text" value={settings.duration ?? "1 Hour"}
                       onChange={(e) => setSetting("duration", e.target.value)}
                       className={inputCls}
                     />
@@ -625,7 +625,7 @@ export default function AdminDashboard() {
                 <div className={sectionCls}>
                   <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm uppercase tracking-wider">Monthly Subscription Prices</h3>
                   <div>
-                    <label className={labelCls}>Saturday Plan Price (£/month)</label>
+                    <label className={labelCls}>Friday Plan Price (£/month)</label>
                     <input type="number" value={Math.round(Number(settings.plan_saturday_price ?? 10000) / 100)}
                       onChange={(e) => setSetting("plan_saturday_price", String(Number(e.target.value) * 100))}
                       className={inputCls} style={{ maxWidth: 160 }}
@@ -639,8 +639,8 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>Saturday Plan Name</label>
-                    <input type="text" value={settings.plan_saturday_name ?? "Saturday Sessions"}
+                    <label className={labelCls}>Friday Plan Name</label>
+                    <input type="text" value={settings.plan_saturday_name ?? "Friday Sessions"}
                       onChange={(e) => setSetting("plan_saturday_name", e.target.value)}
                       className={inputCls}
                     />
@@ -708,7 +708,7 @@ export default function AdminDashboard() {
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-2">Camp Slide</p>
                   {[
                     { key: "home_camp_tag",         label: "Badge Text",        placeholder: "Easter Holidays",                rows: 1 },
-                    { key: "home_camp_title",        label: "Slide Title",       placeholder: "Little Netters Camps",           rows: 1 },
+                    { key: "home_camp_title",        label: "Slide Title",       placeholder: "Little Netstars Camps",           rows: 1 },
                     { key: "home_camp_description",  label: "Description",       placeholder: "Exciting two-day netball camps…", rows: 3 },
                     { key: "home_camp_dates",        label: "Dates",             placeholder: "Thu 1st – Fri 2nd April 2027",   rows: 1 },
                     { key: "home_camp_time",         label: "Time",              placeholder: "9:00am – 4:00pm",                rows: 1 },
@@ -727,8 +727,8 @@ export default function AdminDashboard() {
                   {[
                     { key: "home_schools_tag",         label: "Badge Text",      placeholder: "Schools & Nurseries",                         rows: 1 },
                     { key: "home_schools_title",        label: "Slide Title",    placeholder: "We Come to You",                              rows: 1 },
-                    { key: "home_schools_description",  label: "Description",   placeholder: "Little Netters delivers tailored sessions…",    rows: 3 },
-                    { key: "home_schools_ages",         label: "Age Group",      placeholder: "2–11 years old",                              rows: 1 },
+                    { key: "home_schools_description",  label: "Description",   placeholder: "Little Netstars delivers tailored sessions…",    rows: 3 },
+                    { key: "home_schools_ages",         label: "Age Group",      placeholder: "4–11 years old",                              rows: 1 },
                     { key: "home_schools_length",       label: "Session Length", placeholder: "1 hour",                                      rows: 1 },
                     { key: "home_schools_plans",        label: "Session Plans",  placeholder: "Tailored to your needs",                       rows: 1 },
                     { key: "home_schools_delivery",     label: "Delivery",       placeholder: "Schools & nurseries",                          rows: 1 },
@@ -1650,7 +1650,7 @@ export default function AdminDashboard() {
                             {sub.status.replace("_"," ")}
                           </span>
                           <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
-                            {sub.plan === "both" ? "Weekend" : "Saturday"}
+                            {sub.plan === "both" ? "Weekend" : "Friday"}
                           </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{sub.email}</p>

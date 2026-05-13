@@ -48,13 +48,12 @@ export default function Booking() {
     setChildren(children.filter((_, i) => i !== index));
   }
 
-  const selectedDateIsWeekend = (() => {
+  const selectedDateIsFriday = (() => {
     if (!selectedDate) return false;
-    const day = new Date(selectedDate).getUTCDay();
-    return day === 0 || day === 6;
+    return new Date(selectedDate).getUTCDay() === 5;
   })();
   const canProceedStep1 =
-    location && selectedDate && selectedDateIsWeekend && selectedTime;
+    location && selectedDate && selectedDateIsFriday && selectedTime;
   const canProceedStep2 = children.every((c) => c.name && c.age);
   const canProceedStep3 = parent.name && parent.email && parent.phone;
 
@@ -94,7 +93,7 @@ export default function Booking() {
               Book a Session
             </h1>
             <p className="mt-2 text-slate-500 dark:text-slate-400">
-              Saturdays & Sundays · 45 min sessions · London & Manchester
+              Fridays · 1 hour sessions · London & Manchester · from 17 July 2026
             </p>
             <div className="mt-3 inline-flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold px-3 py-1.5 rounded-full">
               <span>🎉</span> First session is FREE — no payment needed
@@ -173,19 +172,19 @@ export default function Booking() {
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                     Date{" "}
                     <span className="text-slate-400 font-normal">
-                      (Weekends only)
+                      (Fridays only · from 17 July 2026)
                     </span>
                   </label>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
+                    min="2026-07-17"
                     className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-3 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
-                  {selectedDate && !selectedDateIsWeekend && (
+                  {selectedDate && !selectedDateIsFriday && (
                     <p className="mt-2 text-xs text-red-500">
-                      Please select a Saturday or Sunday.
+                      Please select a Friday — sessions start 17 July 2026.
                     </p>
                   )}
                 </div>
@@ -359,7 +358,7 @@ export default function Booking() {
                         Duration
                       </span>
                       <span className="font-semibold text-slate-900 dark:text-white">
-                        45 minutes
+                        1 hour
                       </span>
                     </div>
                   </div>
